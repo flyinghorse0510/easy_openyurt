@@ -4,7 +4,7 @@ COLOR_ERROR=1
 COLOR_WARNING=3
 COLOR_SUCCESS=2
 color_echo () {
-	echo -e -n $(tput setaf $1) $2 $(tput sgr 0)
+	echo -e $(tput setaf $1) $2 $(tput sgr 0)
 }
 
 # Use Proxychains If Existed
@@ -14,17 +14,17 @@ if [ -x "$(command -v proxychains)" ]; then
 	read confirmation
 	case ${confirmation} in
 		[yY]*)
-			color_echo ${COLOR_SUCCESS} "[Info]: Proxychains WILL be Used!\n"
+			color_echo ${COLOR_SUCCESS} "[Info]: Proxychains WILL be Used!"
 			PROXY_CMD="proxychains"
 			;;
 		*)
-			color_echo ${COLOR_SUCCESS} "[Info]: Proxychains WILL NOT be Used!\n"
+			color_echo ${COLOR_SUCCESS} "[Info]: Proxychains WILL NOT be Used!"
 			;;
 	esac
 	sleep 1
 fi
 
-color_echo ${COLOR_SUCCESS} "[Info]: Installing Build Dependencies...\n"
+color_echo ${COLOR_SUCCESS} "[Info]: Installing Build Dependencies..."
 sudo ${PROXY_CMD} apt update
 sudo ${PROXY_CMD} apt install git wget build-essential curl
 
@@ -36,18 +36,19 @@ if [ -x "$(command -v go)" ]; then
 		[yY]*)
 			;;
 		*)
-			color_echo ${COLOR_WARNING} "[Warning]: Installation Aborted!\n"
+			color_echo ${COLOR_WARNING} "[Warning]: Installation Aborted!"
 			exit 0
 			;;
 	esac
 fi
 
 # Install Golang
-color_echo ${COLOR_SUCCESS} "[Info]: Installing Golang(ver 1.17.13)\n"
+color_echo ${COLOR_SUCCESS} "[Info]: Installing Golang(ver 1.17.13)"
 mkdir -p ${HOME}/.yurt_tmp
 pushd ${HOME}/.yurt_tmp
 ${PROXY_CMD} wget https://go.dev/dl/go1.17.13.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.17.13.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.17.13.linux-amd64.tar.gz
 
 # Update PATH
 export PATH=$PATH:/usr/local/go/bin
@@ -59,7 +60,7 @@ if [ -f ${HOME}/.zshrc ]; then
 fi
 
 # Clone Source Code of yurtadm
-color_echo ${COLOR_SUCCESS} "[Info]: Downloading Source Code and Compiling...\n"
+color_echo ${COLOR_SUCCESS} "[Info]: Downloading Source Code and Compiling..."
 ${PROXY_CMD} git clone https://github.com/openyurtio/openyurt.git
 pushd openyurt
 ${PROXY_CMD} make build WHAT="yurtadm" ARCH="amd64" REGION=cn
@@ -69,12 +70,13 @@ popd
 
 # Clean Up
 rm -rf ${HOME}/.yurt_tmp
+color_echo ${COLOR_SUCCESS} "[Info]: Successfully Clean Up Temporary Files"
 
 # Check Installation
 if [ -x "$(command -v yurtadm)" ]; then
-	color_echo ${COLOR_SUCCESS} "[Info]: Successfully Installed yurtadm in /usr/local/bin/\n"
+	color_echo ${COLOR_SUCCESS} "[Info]: Successfully Installed yurtadm in /usr/local/bin/"
 	exit 0
 else
-	color_echo ${COLOR_ERROR} "[Error]: Fatal Error! Installation Failed!\n"
+	color_echo ${COLOR_ERROR} "[Error]: Fatal Error! Installation Failed!"
 	exit 1
 fi
