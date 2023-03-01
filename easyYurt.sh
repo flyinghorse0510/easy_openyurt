@@ -131,7 +131,7 @@ system_init () {
 
 	# Install CNI Plugins
 	info_echo "Installing CNI Plugins...\n"
-	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null
+	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install CNI Plugins!\n"
         	error_echo "Script Terminated!\n"
@@ -265,6 +265,24 @@ kubeadm_worker_join () {
         fi
 }
 
+yurt_master_init () {
+	# Whether to Treat Master Node as a Cloud Node
+	warn_echo "Treat Master Node as a Cloud Node? [y/n]: "
+	read confirmation
+	case ${confirmation} in
+		[yY]*)
+			kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule-
+			kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+			warn_echo "Master Node WILL also be Treated as a Cloud Node\n"
+			;;
+		*)
+			warn_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
+			;;
+	esac
+
+
+}
+
 # Check Arguments
 if [ ${argc} -lt 3 ]; then
         error_echo "Too Few Arguments!\n"
@@ -359,10 +377,37 @@ case ${operationObject} in
         yurt)
 		case ${nodeRole} in
 			master)
-				
+				case ${operation} in
+					init)
+						error_echo "Temporary Unavailable API!\n"
+						exit 1
+						;;
+					expand)
+						error_echo "Temporary Unavailable API!\n"
+                                                exit 1
+						;;
+					*)
+						error_echo "Invalid Operation: [operation]->${operation}\n"
+						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args...>\n"
+						exit 1
+						;;
+				esac
 				;;
 			worker)
-				
+				case ${operation} in
+					join)
+						if [ ${argc} -ne 6 ]; then
+							error_echo "Invalid Arguments: Need 6, Got ${argc}\n"
+							info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
+							exit 1
+						fi
+						;;
+					*)
+						error_echo "Invalid Operation: [operation]->${operation}\n"
+						info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
+						exit 1
+						;;
+				esac
 				;;
 			*)
 				error_echo "Invalid NodeRole: [nodeRole]->${nodeRole}\n"
