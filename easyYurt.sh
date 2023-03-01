@@ -77,7 +77,7 @@ system_init () {
 
 	# Install Dependencies
 	info_echo "Installing Dependencies...\n"
-	sudo ${PROXY_CMD} apt -qq update > /dev/null && sudo ${PROXY_CMD} apt -qq install -y git wget curl build-essential apt-transport-https ca-certificates > /dev/null
+	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y git wget curl build-essential apt-transport-https ca-certificates > /dev/null
 	if ! [ $? -eq 0 ]; then
 		error_echo "Failed to Install Dependencies!\n"
 		error_echo "Script Terminated!\n"
@@ -195,7 +195,7 @@ system_init () {
         	error_echo "Script Terminated!\n"
         	exit 1
 	fi
-	sudo ${PROXY_CMD} apt -qq update > /dev/null && sudo ${PROXY_CMD} apt -qq install -y --allow-downgrades kubeadm=1.23.16-00 kubelet=1.23.16-00 kubectl=1.23.16-00 > /dev/null && sudo apt-mark hold kubelet kubeadm kubectl
+	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=1.23.16-00 kubelet=1.23.16-00 kubectl=1.23.16-00 > /dev/null && sudo apt-mark hold kubelet kubeadm kubectl
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Kubeadm, Kubelet, Kubectl!\n"
         	error_echo "Script Terminated!\n"
