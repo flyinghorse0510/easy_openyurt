@@ -54,6 +54,13 @@ KUBEADM_INIT_IMG_REPO_ARGS=""
 
 # Version Information
 KUBE_VERSION="1.23.16"
+GO_VERSION="1.17.13"
+CONTAINERD_VERSION="1.6.18"
+RUNC_VERSION="1.1.4"
+CNI_PLUGINS_VERSION="1.2.0"
+KUBECTL_VERSION="1.23.16-00"
+KUBEADM_VERSION="1.23.16-00"
+KUBELET_VERSION="1.23.16-00"
 
 print_usage () {
 	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>\n"
@@ -97,14 +104,14 @@ system_init () {
 	ARCH=$(dpkg --print-architecture)
 	pushd ${HOME}/.yurt_tmp
 	info_echo "Downloading Containerd...\n"
-	${PROXY_CMD} wget https://github.com/containerd/containerd/releases/download/v1.6.18/containerd-1.6.18-linux-${ARCH}.tar.gz > /dev/null
+	${PROXY_CMD} wget https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Download Containerd!\n"
         	error_echo "Script Terminated!\n"
 		exit 1
 	fi
 	info_echo "Installing Containerd...\n"
-	sudo tar Cxzvf /usr/local containerd-1.6.18-linux-${ARCH}.tar.gz > /dev/null
+	sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Containerd!\n"
         	error_echo "Script Terminated!\n"
@@ -122,7 +129,7 @@ system_init () {
 
 	# Install Runc
 	info_echo "Installing Runc...\n"
-	${PROXY_CMD} wget https://github.com/opencontainers/runc/releases/download/v1.1.4/runc.${ARCH} > /dev/null && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
+	${PROXY_CMD} wget https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} > /dev/null && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Runc!\n"
         	error_echo "Script Terminated!\n"
@@ -131,7 +138,7 @@ system_init () {
 
 	# Install CNI Plugins
 	info_echo "Installing CNI Plugins...\n"
-	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v1.2.0.tgz > /dev/null
+	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install CNI Plugins!\n"
         	error_echo "Script Terminated!\n"
@@ -148,8 +155,8 @@ system_init () {
 	fi
 
 	# Install Golang
-	info_echo "Installing Golang(ver 1.17.13)...\n"
-	${PROXY_CMD} wget https://go.dev/dl/go1.17.13.linux-${ARCH}.tar.gz > /dev/null && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.17.13.linux-${ARCH}.tar.gz > /dev/null
+	info_echo "Installing Golang(ver ${GO_VERSION})...\n"
+	${PROXY_CMD} wget https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz > /dev/null && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Golang!\n"
         	error_echo "Script Terminated!\n"
@@ -195,7 +202,8 @@ system_init () {
         	error_echo "Script Terminated!\n"
         	exit 1
 	fi
-	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=1.23.16-00 kubelet=1.23.16-00 kubectl=1.23.16-00 > /dev/null && sudo apt-mark hold kubelet kubeadm kubectl
+	sudo apt-mark unhold kubelet kubeadm kubectl 2> /dev/null
+	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=${KUBEADM_VERSION} kubelet=${KUBELET_VERSION} kubectl=${KUBECTL_VERSION} > /dev/null && sudo apt-mark hold kubelet kubeadm kubectl
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Kubeadm, Kubelet, Kubectl!\n"
         	error_echo "Script Terminated!\n"
