@@ -359,8 +359,10 @@ case ${operationObject} in
         yurt)
 		case ${nodeRole} in
 			master)
+				
 				;;
 			worker)
+				
 				;;
 			*)
 				error_echo "Invalid NodeRole: [nodeRole]->${nodeRole}\n"
