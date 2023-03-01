@@ -224,10 +224,10 @@ kubeadm_master_init () {
         esac
 	funcArgc=$#
 
-	if [ ${funArgc} -eq 1 ]; then
-		kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress}
+	if [ ${funcArgc} -eq 1 ]; then
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress}
 	else
-		kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16"
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16"
 	fi
 	if ! [ $? -eq 0 ]; then
 		error_echo "kubeadm init Failed!\n"
