@@ -208,7 +208,7 @@ system_init () {
 	rm -rf ${HOME}/.yurt_tmp
 }
 
-kubeadm_master_init () {
+kubeadm_pre_pull () {
 	# China Mainland Adaptation
         warn_echo "Apply Adaptation & Optimization for China Mainland Users to Avoid Network Issues? [y/n]: "
         read confirmation
@@ -222,6 +222,12 @@ kubeadm_master_init () {
                         warn_echo "Adaptation WILL NOT be Applied!\n"
                         ;;
         esac
+	# Pre-Pulling Required Images
+	sudo kubeadm config images pull --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS}
+}
+
+kubeadm_master_init () {
+	
 	funcArgc=$#
 
 	if [ ${funcArgc} -eq 1 ]; then
@@ -279,8 +285,6 @@ yurt_master_init () {
 			warn_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
 			;;
 	esac
-
-
 }
 
 # Check Arguments
@@ -322,6 +326,7 @@ case ${operationObject} in
 					exit 1
 				fi
 				system_init
+				info_echo "Init System Successfully!\n"
 				exit 0
 				;;
 			*)
@@ -345,11 +350,13 @@ case ${operationObject} in
 					exit 1
 				fi
 				# kubeadm init
+				kubeadm_pre_pull # Pre-Pull Required Images
 				if [ ${argc} -eq 4 ]; then
 					kubeadm_master_init ${apiserverAdvertiseAddress}
 				else
 					kubeadm_master_init
 				fi
+				info_echo "Init Kubernetes Cluster Master Node Successfully!\n"
 				exit 0
 				;;
 			worker)
@@ -365,6 +372,7 @@ case ${operationObject} in
 				fi
 				# kubeadm join
 				kubeadm_worker_join ${controlPlaneHost} ${controlPlanePort} ${controlPlaneToken} ${discoveryTokenHash}
+				info_echo "Join Kubernetes Cluster Successfully!\n"
 				exit 0
 				;;
 			*)
