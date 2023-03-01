@@ -49,6 +49,7 @@ controlPlaneHost=$4
 controlPlanePort=$5
 controlPlaneToken=$6
 discoveryTokenHash=$7
+ARCH=$(dpkg --print-architecture)
 PROXY_CMD=""
 KUBEADM_INIT_IMG_REPO_ARGS=""
 
@@ -100,9 +101,11 @@ system_init () {
 		exit 1
 	fi
 
-	# Install Containerd
-	ARCH=$(dpkg --print-architecture)
+
 	pushd ${HOME}/.yurt_tmp
+
+	# Install Containerd
+	info_echo "Installing Containerd(ver ${CONTAINERD_VERSION})...\n"
 	info_echo "Downloading Containerd...\n"
 	${PROXY_CMD} wget https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
 	if ! [ $? -eq 0 ]; then
@@ -110,7 +113,6 @@ system_init () {
         	error_echo "Script Terminated!\n"
 		exit 1
 	fi
-	info_echo "Installing Containerd...\n"
 	sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Containerd!\n"
@@ -128,7 +130,7 @@ system_init () {
 	fi
 
 	# Install Runc
-	info_echo "Installing Runc...\n"
+	info_echo "Installing Runc(ver ${RUNC_VERSION})...\n"
 	${PROXY_CMD} wget https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} > /dev/null && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install Runc!\n"
@@ -137,7 +139,7 @@ system_init () {
 	fi
 
 	# Install CNI Plugins
-	info_echo "Installing CNI Plugins...\n"
+	info_echo "Installing CNI Plugins(ver ${CNI_PLUGINS_VERSION})...\n"
 	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null
 	if ! [ $? -eq 0 ]; then
         	error_echo "Failed to Install CNI Plugins!\n"
@@ -162,6 +164,9 @@ system_init () {
         	error_echo "Script Terminated!\n"
         	exit 1
 	fi
+
+
+	popd
 
 	# Update PATH
 	info_echo "Updating PATH...\n"
@@ -212,7 +217,6 @@ system_init () {
 
 	# Clean Temporary Directory
 	info_echo "Cleaning Temporary Directory...\n"
-	popd
 	rm -rf ${HOME}/.yurt_tmp
 }
 
