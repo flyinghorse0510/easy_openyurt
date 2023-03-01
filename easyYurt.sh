@@ -22,22 +22,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Text Color Definition
-COLOR_ERROR=1
-COLOR_WARNING=3
-COLOR_SUCCESS=2
-color_echo () {
-        echo -e -n $(tput setaf $1)$2$(tput sgr 0)
-}
-warn_echo () {
-	color_echo ${COLOR_WARNING} "[Warn] $1"
-}
-info_echo () {
-	color_echo ${COLOR_SUCCESS} "[Info] $1"
-}
-error_echo () {
-	color_echo ${COLOR_ERROR} "[Error] $1"
-}
+# Version Lock
+KUBE_VERSION="1.23.16"
+GO_VERSION="1.17.13"
+CONTAINERD_VERSION="1.6.18"
+RUNC_VERSION="1.1.4"
+CNI_PLUGINS_VERSION="1.2.0"
+KUBECTL_VERSION="1.23.16-00"
+KUBEADM_VERSION="1.23.16-00"
+KUBELET_VERSION="1.23.16-00"
 
 # Global Variables
 argc=$#
@@ -49,191 +42,247 @@ controlPlaneHost=$4
 controlPlanePort=$5
 controlPlaneToken=$6
 discoveryTokenHash=$7
-ARCH=$(dpkg --print-architecture)
+ARCH=""
 PROXY_CMD=""
 KUBEADM_INIT_IMG_REPO_ARGS=""
+TMP_DIR=""
+OS=""
+SYMBOL_WAITING=" >>>>> "
 
-# Version Information
-KUBE_VERSION="1.23.16"
-GO_VERSION="1.17.13"
-CONTAINERD_VERSION="1.6.18"
-RUNC_VERSION="1.1.4"
-CNI_PLUGINS_VERSION="1.2.0"
-KUBECTL_VERSION="1.23.16-00"
-KUBEADM_VERSION="1.23.16-00"
-KUBELET_VERSION="1.23.16-00"
+# Configure Redirection and Logs
+exec 3>&1
+exec 4>&2
+exec 1>> easyOpenYurtInfo.log
+exec 2>> easyOpenYurtErr.log
 
+# Text Color Definition
+COLOR_ERROR=1
+COLOR_WARNING=3
+COLOR_SUCCESS=2
+COLOR_INFO=4
+color_echo () {
+    echo -e -n "$(tput setaf $1)[$(date +'%T')]\t$2$(tput sgr 0)"
+}
+
+# Print Helper Function
+info_echo () {
+	echo -e -n "[$(date +'%T')]\t[Info] $1" # For Logs
+	color_echo ${COLOR_INFO} "[Info] $1" >&3 # For Output
+}
+success_echo () {
+	echo -e -n "[$(date +'%T')]\t[Success] $1" # For Logs
+	color_echo ${COLOR_SUCCESS} "[Success] $1" >&3 # For Output
+}
+warn_echo () {
+	echo -e -n "[$(date +'%T')]\t[Warn] $1" >&2 # For Logs
+	color_echo ${COLOR_WARNING} "[Warn] $1" >&4 # For Output
+}
+error_echo () {
+	echo -e -n "[$(date +'%T')]\t[Error] $1" >&2 # For Logs
+	color_echo ${COLOR_ERROR} "[Error] $1" >&4 # For Output
+}
 print_usage () {
-	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>\n"
+	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args${SYMBOL_WAITING}>\n"
+}
+
+# Detect the Architecture
+detect_arch () {
+	ARCH=$(uname -m)
+	case $ARCH in
+		armv5*)	ARCH="armv5" ;;
+		armv6*) ARCH="armv6" ;;
+		armv7*) ARCH="arm" ;;
+		aarch64) ARCH="arm64" ;;
+		x86) ARCH="386" ;;
+		x86_64) ARCH="amd64" ;;
+		i686) ARCH="386" ;;
+		i386) ARCH="386" ;;
+		*)	terminate_with_error "Unsupported Architecture: ${ARCH}!" ;;
+	esac
+}
+
+detect_os () {
+	OS=$(cat /etc/issue | sed -n "s/\s*\(\S\S*\).*/\1/p" | head -1 | tr '[:upper:]' '[:lower:]')
+}
+
+# Detect Executable in PATH
+detect_cmd () {
+	cmd=$1
+	if [ -x "$(command -v ${cmd})" ]; then
+		return 0
+	fi
+	return 1
+}
+
+
+# Script Control
+terminate_with_error () {
+	funcArgc=$#
+	errorMsg=$1
+	if [ ${funcArgc} -ge 1 ]; then
+		error_echo "${errorMsg}\n"
+	fi
+	error_echo "Script Terminated!\n"
+	exit 1
+}
+
+terminate_if_error () {
+	cmdResult=$?
+	errorMsg=$1
+	if ! [ ${cmdResult} -eq 0 ]; then
+		error_echo "\n"
+		terminate_with_error "${errorMsg}"
+	else
+		success_echo "\n"
+	fi
+}
+
+exit_with_success_info () {
+	funcArgc=$#
+	exitMsg=$1
+	if [ ${funcArgc} -ge 1 ]; then
+		success_echo "${exitMsg}\n"
+	fi
+	exit 0
+}
+
+choose_yes () {
+	msg=$1
+	warn_echo "${msg} [y/n]: "
+	read confirmation
+	case ${confirmation} in
+		[yY]*)
+			return 0
+		;;
+		*)
+			return 1
+		;;
+	esac
+}
+
+
+# Temporary Files Management
+create_tmp_dir () {
+	# Create Temporary Directory
+	info_echo "Creating Temporary Directory${SYMBOL_WAITING}"
+	mkdir -p ${HOME}/.yurt_tmp
+	terminate_if_error "Failed to Create Temporary Directory!"
+}
+
+clean_tmp_dir () {
+	# Clean Temporary Directory
+	info_echo "Cleaning Temporary Directory${SYMBOL_WAITING}\n"
+	rm -rf ${HOME}/.yurt_tmp
+}
+
+# Proxy Settings
+use_proxychains () {
+	# Use Proxychains If Existed
+	if detect_cmd "proxychains"; then
+		if choose_yes "Proxychains Detected! Use Proxy?"; then
+			PROXY_CMD="proxychains"
+			info_echo "Proxychains WILL be Used!\n"
+		else
+			info_echo "Proxychains WILL NOT be Used!\n"
+		fi
+		sleep 1
+	fi
 }
 
 system_init () {
 	# Disable Swap
-	info_echo "Disabling Swap...\n"
+	info_echo "Disabling Swap${SYMBOL_WAITING}"
 	sudo swapoff -a && sudo cp /etc/fstab /etc/fstab.old 	# Turn off Swap && Backup fstab file
-	if ! [ $? -eq 0 ]; then
-		error_echo "Failed to Disable Swap!\n"
-		error_echo "Script Terminated!\n"
-		exit 1
-	fi
+	terminate_if_error "Failed to Disable Swap!"
+
+	info_echo "Modifying fstab${SYMBOL_WAITING}"
 	sudo sed -i 's/.*swap.*/# &/g' /etc/fstab		# Modify fstab to Disable Swap Permanently
-	if ! [ $? -eq 0 ]; then
-		error_echo "Failed to Modify fstab!\n"
-		error_echo "Script Terminated!\n"
-		exit 1
-	fi
+	terminate_if_error "Failed to Modify fstab!"
 
 	# Install Dependencies
-	info_echo "Installing Dependencies...\n"
-	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y git wget curl build-essential apt-transport-https ca-certificates > /dev/null
-	if ! [ $? -eq 0 ]; then
-		error_echo "Failed to Install Dependencies!\n"
-		error_echo "Script Terminated!\n"
-		exit 1
-	fi
-
-	# Create Temporary Directory
-	info_echo "Creating Temporary Directory...\n"
-	mkdir -p ${HOME}/.yurt_tmp
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Create Temporary Directory!\n"
-        	error_echo "Script Terminated!\n"
-		exit 1
-	fi
-
-
-	pushd ${HOME}/.yurt_tmp
+	info_echo "Installing Dependencies${SYMBOL_WAITING}"
+	sudo ${PROXY_CMD} apt-get -qq update  && sudo ${PROXY_CMD} apt-get -qq install -y git wget curl build-essential apt-transport-https ca-certificates 
+	terminate_if_error "Failed to Install Dependencies!"
 
 	# Install Containerd
-	info_echo "Installing Containerd(ver ${CONTAINERD_VERSION})...\n"
-	info_echo "Downloading Containerd...\n"
-	${PROXY_CMD} wget https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Download Containerd!\n"
-        	error_echo "Script Terminated!\n"
-		exit 1
-	fi
-	sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz > /dev/null
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Install Containerd!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	info_echo "Installing Containerd(ver ${CONTAINERD_VERSION})${SYMBOL_WAITING}\n"
+	info_echo "Downloading Containerd${SYMBOL_WAITING}"
+	${PROXY_CMD} wget -q https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz 
+	terminate_if_error "Failed to Download Containerd!"
+
+	info_echo "Extracting Containerd${SYMBOL_WAITING}"
+	sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz
+	terminate_if_error "Failed to Extract Containerd!"
 
 	# Start Containerd via Systemd
-	info_echo "Starting Containerd...\n"
-	${PROXY_CMD} wget https://raw.githubusercontent.com/containerd/containerd/main/containerd.service > /dev/null && sudo cp containerd.service /lib/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now containerd
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Start Containerd!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	info_echo "Starting Containerd${SYMBOL_WAITING}"
+	${PROXY_CMD} wget -q https://raw.githubusercontent.com/containerd/containerd/main/containerd.service && sudo cp containerd.service /lib/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now containerd
+	terminate_if_error "Failed to Start Containerd!"
 
 	# Install Runc
-	info_echo "Installing Runc(ver ${RUNC_VERSION})...\n"
-	${PROXY_CMD} wget https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} > /dev/null && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Install Runc!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	info_echo "Installing Runc(ver ${RUNC_VERSION})${SYMBOL_WAITING}"
+	${PROXY_CMD} wget -q https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
+	terminate_if_error "Failed to Install Runc!"
 
 	# Install CNI Plugins
-	info_echo "Installing CNI Plugins(ver ${CNI_PLUGINS_VERSION})...\n"
-	${PROXY_CMD} wget https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz > /dev/null
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Install CNI Plugins!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	info_echo "Installing CNI Plugins(ver ${CNI_PLUGINS_VERSION})${SYMBOL_WAITING}"
+	${PROXY_CMD} wget -q https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz
+	terminate_if_error "Failed to Install CNI Plugins!"
 
 	# Configure the Systemd Cgroup Driver
-	info_echo "Configuring the Systemd Cgroup Driver...\n"
+	info_echo "Configuring the Systemd Cgroup Driver${SYMBOL_WAITING}"
 	containerd config default > config.toml && sudo mkdir -p /etc/containerd && sudo cp config.toml /etc/containerd/config.toml && sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml && sudo systemctl restart containerd
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Configure the Systemd Cgroup Driver!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	terminate_if_error "Failed to Configure the Systemd Cgroup Driver!"
 
 	# Install Golang
-	info_echo "Installing Golang(ver ${GO_VERSION})...\n"
-	${PROXY_CMD} wget https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz > /dev/null && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz > /dev/null
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Install Golang!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
-
-
-	popd
+	info_echo "Installing Golang(ver ${GO_VERSION})${SYMBOL_WAITING}"
+	${PROXY_CMD} wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz
+	terminate_if_error "Failed to Install Golang!"
 
 	# Update PATH
-	info_echo "Updating PATH...\n"
+	info_echo "Updating PATH${SYMBOL_WAITING}\n"
 	case ${SHELL} in
 		/usr/bin/zsh | /bin/zsh | zsh)
 			echo "export PATH=\$PATH:/usr/local/go/bin" >> ${HOME}/.zshrc
-			;;
+		;;
 		/usr/bin/bash | /bin/bash | bash)
 			echo "export PATH=\$PATH:/usr/local/go/bin" >> ${HOME}/.bashrc
-			;;
+		;;
 		*)
-			error_echo "Unsupported Default Shell!\n"
-			error_echo "Script Terminated!\n"
-			exit 1
-			;;
+			terminate_with_error "Unsupported Default Shell!"
+		;;
 	esac
 
 	# Enable IP Forwading & Br_netfilter
-	info_echo "Enabling IP Forwading & Br_netfilter...\n"
+	info_echo "Enabling IP Forwading & Br_netfilter${SYMBOL_WAITING}"
 	sudo modprobe br_netfilter && sudo sysctl -w net.ipv4.ip_forward=1 # Enable IP Forwading & Br_netfilter instantly
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Enable IP Forwading & Br_netfilter!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	terminate_if_error "Failed to Enable IP Forwading & Br_netfilter!"
+
+	info_echo "Ensuring Boot-Resistant${SYMBOL_WAITING}"
 	echo "br_netfilter" | sudo tee /etc/modules-load.d/netfilter.conf && sudo sed -i 's/# *net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf && sudo sed -i 's/net.ipv4.ip_forward=0/net.ipv4.ip_forward=1/g' /etc/sysctl.conf # Ensure Boot-Resistant
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Enable IP Forwading & Br_netfilter!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	terminate_if_error "Failed to Enable IP Forwading & Br_netfilter!"
 
 	# Install Kubeadm, Kubelet, Kubectl
-	info_echo "Installing Kubeadm, Kubelet, Kubectl...\n"
-	sudo mkdir -p /etc/apt/keyrings && sudo ${PROXY_CMD} curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg > /dev/null && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list # Download the Google Cloud public signing key && Add the Kubernetes apt repository
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Download the Google Cloud public signing key && Add the Kubernetes apt repository!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
-	sudo apt-mark unhold kubelet kubeadm kubectl 2> /dev/null
-	sudo ${PROXY_CMD} apt-get -qq update > /dev/null && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=${KUBEADM_VERSION} kubelet=${KUBELET_VERSION} kubectl=${KUBECTL_VERSION} > /dev/null && sudo apt-mark hold kubelet kubeadm kubectl
-	if ! [ $? -eq 0 ]; then
-        	error_echo "Failed to Install Kubeadm, Kubelet, Kubectl!\n"
-        	error_echo "Script Terminated!\n"
-        	exit 1
-	fi
+	info_echo "Downloading Google Cloud Public Signing Key${SYMBOL_WAITING}"
+	sudo mkdir -p /etc/apt/keyrings && sudo ${PROXY_CMD} curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg  && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list # Download the Google Cloud public signing key && Add the Kubernetes apt repository
+	terminate_if_error "Failed to Download the Google Cloud public signing key && Add the Kubernetes apt repository!"
 
-	# Clean Temporary Directory
-	info_echo "Cleaning Temporary Directory...\n"
-	rm -rf ${HOME}/.yurt_tmp
+	sudo apt-mark unhold kubelet kubeadm kubectl
+	info_echo "Installing Kubeadm, Kubelet, Kubectl${SYMBOL_WAITING}"
+	sudo ${PROXY_CMD} apt-get -qq update && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=${KUBEADM_VERSION} kubelet=${KUBELET_VERSION} kubectl=${KUBECTL_VERSION} && sudo apt-mark hold kubelet kubeadm kubectl
+	terminate_if_error "Failed to Install Kubeadm, Kubelet, Kubectl!"
 }
 
 kubeadm_pre_pull () {
 	# China Mainland Adaptation
-        warn_echo "Apply Adaptation & Optimization for China Mainland Users to Avoid Network Issues? [y/n]: "
-        read confirmation
-        case ${confirmation} in
-                [yY]*)
-                        warn_echo "Applying China Mainland Adaptation...\n"
-                        KUBEADM_INIT_IMG_REPO_ARGS="--image-repository docker.io/flyinghorse0510"
-                        sudo sed -i "s/sandbox_image = \".*\"/sandbox_image = \"docker.io/flyinghorse0510/pause:3.6\"/g" /etc/containerd/config.toml
-                        ;;
-                *)
-                        warn_echo "Adaptation WILL NOT be Applied!\n"
-                        ;;
-        esac
+	if choose_yes "Apply Adaptation & Optimization for China Mainland Users to Avoid Network Issues?"; then
+		info_echo "Applying China Mainland Adaptation${SYMBOL_WAITING}\n"
+		KUBEADM_INIT_IMG_REPO_ARGS="--image-repository docker.io/flyinghorse0510"
+		sudo sed -i "s/sandbox_image = \".*\"/sandbox_image = \"docker.io/flyinghorse0510/pause:3.6\"/g" /etc/containerd/config.toml
+	else
+		info_echo "Adaptation WILL NOT be Applied!\n"
+	fi
+
 	# Pre-Pulling Required Images
 	sudo kubeadm config images pull --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS}
 }
@@ -242,45 +291,30 @@ kubeadm_master_init () {
 	
 	funcArgc=$#
 
+	info_echo "kubeadm init${SYMBOL_WAITING}"
 	if [ ${funcArgc} -eq 1 ]; then
 		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress}
 	else
 		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16"
 	fi
-	if ! [ $? -eq 0 ]; then
-		error_echo "kubeadm init Failed!\n"
-		error_echo "Script Terminated!\n"
-		exit 1
-	fi
+	terminate_if_error "kubeadm init Failed!"
 
 	# Make kubectl Work for Non-Root User
-	info_echo "Making kubectl Work for Non-Root User...\n"
+	info_echo "Making kubectl Work for Non-Root User${SYMBOL_WAITING}"
 	mkdir -p $HOME/.kube && sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && sudo chown $(id -u):$(id -g) $HOME/.kube/config
-	if ! [ $? -eq 0 ]; then
-                error_echo "Failed to Make kubectl Work for Non-Root User!\n"
-                error_echo "Script Terminated!\n"
-                exit 1
-        fi
+	terminate_if_error "Failed to Make kubectl Work for Non-Root User!"
 
 	# Install Pod Network
-	info_echo "Installing Pod Network...\n"
+	info_echo "Installing Pod Network${SYMBOL_WAITING}"
 	${PROXY_CMD} kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-	if ! [ $? -eq 0 ]; then
-                error_echo "Failed to Install Pod Network!\n"
-                error_echo "Script Terminated!\n"
-                exit 1
-        fi
+	terminate_if_error "Failed to Install Pod Network!"
 }
 
 kubeadm_worker_join () {
 	# Join Kubernetes Cluster
-	info_echo "Joining Kubernetes Cluster...\n"
+	info_echo "Joining Kubernetes Cluster${SYMBOL_WAITING}"
 	sudo kubeadm join ${controlPlaneHost}:${controlPlanePort} --token ${controlPlaneToken} --discovery-token-ca-cert-hash ${discoveryTokenHash}
-	if ! [ $? -eq 0 ]; then
-                error_echo "Failed to Join Kubernetes Cluster\n"
-                error_echo "Script Terminated!\n"
-                exit 1
-        fi
+	terminate_if_error "Failed to Join Kubernetes Cluster"
 }
 
 yurt_master_init () {
@@ -292,38 +326,20 @@ yurt_master_init () {
 			kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule-
 			kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 			warn_echo "Master Node WILL also be Treated as a Cloud Node\n"
-			;;
+		;;
 		*)
 			warn_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
-			;;
+		;;
 	esac
 
 	# Install Helm
-	info_echo "Installing Helm...\n"
-
+	info_echo "Installing Helm${SYMBOL_WAITING}\n"
 }
 
 # Check Arguments
 if [ ${argc} -lt 3 ]; then
-        error_echo "Too Few Arguments!\n"
-        print_usage
-        exit 1
-fi
-
-# Use Proxychains If Existed
-if [ -x "$(command -v proxychains)" ]; then
-        warn_echo "Proxychains Detected! Use Proxy? [y/n]: "
-        read confirmation
-        case ${confirmation} in
-                [yY]*)
-                        info_echo "Proxychains WILL be Used!\n"
-                        PROXY_CMD="proxychains"
-                        ;;
-                *)
-                        info_echo "Proxychains WILL NOT be Used!\n"
-                        ;;
-        esac
-        sleep 1
+	print_usage
+	terminate_with_error "Too Few Arguments!"
 fi
 
 # Process Arguments
@@ -332,38 +348,32 @@ case ${operationObject} in
 		case ${nodeRole} in
 			master | worker)
 				if [ ${operation} != "init" ]; then
-					error_echo "Invalid Operation: [operation]->${operation}\n"
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init\n"
-					exit 1
+					terminate_with_error "Invalid Operation: [operation]->${operation}"
 				fi
 				if [ ${argc} -ne 3 ]; then
-					error_echo "Invalid Arguments: Too Many Arguments!\n"
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init\n"
-					exit 1
+					terminate_with_error "Invalid Arguments: Too Many Arguments!"
 				fi
 				system_init
-				info_echo "Init System Successfully!\n"
-				exit 0
-				;;
+				exit_with_success_info "Init System Successfully!"
+			;;
 			*)
-				error_echo "Invalid NodeRole: [nodeRole]->${nodeRole}\n"
 				print_usage
-				exit 1
-				;;
+				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
+			;;
 		esac
-		;;
-        kube)
+	;;
+    kube)
 		case ${nodeRole} in
 			master)
 				if [ ${operation} != "init" ]; then
-					error_echo "Invalid Operation: [operation]->${operation}\n"
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init <serverAdvertiseAddress>\n"
-					exit 1
+					terminate_with_error "Invalid Operation: [operation]->${operation}"
 				fi
 				if [ ${argc} -gt 4 ]; then
-					error_echo "Invalid Arguments: Too Many Arguments!\n"
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init <serverAdvertiseAddress>\n"
-					exit 1
+					terminate_with_error "Invalid Arguments: Too Many Arguments!"
 				fi
 				# kubeadm init
 				kubeadm_pre_pull # Pre-Pull Required Images
@@ -372,77 +382,61 @@ case ${operationObject} in
 				else
 					kubeadm_master_init
 				fi
-				info_echo "Init Kubernetes Cluster Master Node Successfully!\n"
-				exit 0
-				;;
+				exit_with_success_info "Init Kubernetes Cluster Master Node Successfully!"
+			;;
 			worker)
 				if [ ${operation} != "join" ]; then
-                                        error_echo "Invalid Operation: [operation]->${operation}\n"
-                                        info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]\n"
-                                        exit 1
-                                fi
-				if [ ${argc} -ne 7 ]; then
-					error_echo "Invalid Arguments: Need 7, Got ${argc}\n"
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]\n"
-					exit 1
+					terminate_with_error "Invalid Operation: [operation]->${operation}"
+				fi
+				if [ ${argc} -ne 7 ]; then
+					info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]\n"
+					terminate_with_error "Invalid Arguments: Need 7, Got ${argc}"
 				fi
 				# kubeadm join
 				kubeadm_worker_join ${controlPlaneHost} ${controlPlanePort} ${controlPlaneToken} ${discoveryTokenHash}
-				info_echo "Join Kubernetes Cluster Successfully!\n"
-				exit 0
-				;;
+				exit_with_success_info "Join Kubernetes Cluster Successfully!"
+			;;
 			*)
-				error_echo "Invalid NodeRole: [nodeRole]->${nodeRole}\n"
 				print_usage
-				exit 1
-				;;
+				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
+			;;
 		esac
-                ;;
-        yurt)
+    ;;
+    yurt)
 		case ${nodeRole} in
 			master)
 				case ${operation} in
-					init)
-						error_echo "Temporary Unavailable API!\n"
-						exit 1
-						;;
-					expand)
-						error_echo "Temporary Unavailable API!\n"
-                                                exit 1
-						;;
+					init)	terminate_with_error "Temporary Unavailable API!" ;;
+					expand) terminate_with_error "Temporary Unavailable API!" ;;
 					*)
-						error_echo "Invalid Operation: [operation]->${operation}\n"
-						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args...>\n"
-						exit 1
-						;;
+						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args${SYMBOL_WAITING}>\n"
+						terminate_with_error "Invalid Operation: [operation]->${operation}"
+					;;
 				esac
-				;;
+			;;
 			worker)
 				case ${operation} in
 					join)
 						if [ ${argc} -ne 6 ]; then
-							error_echo "Invalid Arguments: Need 6, Got ${argc}\n"
 							info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
-							exit 1
+							terminate_with_error "Invalid Arguments: Need 6, Got ${argc}"
 						fi
-						;;
+					;;
 					*)
-						error_echo "Invalid Operation: [operation]->${operation}\n"
 						info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
-						exit 1
-						;;
+						terminate_with_error "Invalid Operation: [operation]->${operation}"
+					;;
 				esac
-				;;
+			;;
 			*)
-				error_echo "Invalid NodeRole: [nodeRole]->${nodeRole}\n"
 				print_usage
-				exit 1
-				;;
+				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
+			;;
 		esac
-                ;;
-        *)
-                error_echo "Invalid Object: [object]->${operationObject}\n"
-                print_usage
-		exit 1
-		;;
+    ;;
+    *)
+        print_usage
+		terminate_with_error "Invalid Object: [object]->${operationObject}"
+	;;
 esac
