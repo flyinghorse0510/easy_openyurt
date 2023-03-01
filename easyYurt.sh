@@ -275,7 +275,7 @@ kubeadm_master_init () {
 kubeadm_worker_join () {
 	# Join Kubernetes Cluster
 	info_echo "Joining Kubernetes Cluster...\n"
-	sudo kubeadm join ${controlPlaneHost}:${controlPlanePort} --token ${controlPlaneToken} --discovery-token-ca-cert-hash sha256:${discoveryTokenHash}
+	sudo kubeadm join ${controlPlaneHost}:${controlPlanePort} --token ${controlPlaneToken} --discovery-token-ca-cert-hash ${discoveryTokenHash}
 	if ! [ $? -eq 0 ]; then
                 error_echo "Failed to Join Kubernetes Cluster\n"
                 error_echo "Script Terminated!\n"
