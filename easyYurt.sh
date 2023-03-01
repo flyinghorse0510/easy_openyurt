@@ -297,6 +297,10 @@ yurt_master_init () {
 			warn_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
 			;;
 	esac
+
+	# Install Helm
+	info_echo "Installing Helm...\n"
+
 }
 
 # Check Arguments
