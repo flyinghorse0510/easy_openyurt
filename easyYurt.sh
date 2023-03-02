@@ -89,7 +89,6 @@ print_usage () {
 # Detect the Architecture
 detect_arch () {
 	ARCH=$(uname -m)
-
 	case $ARCH in
 		armv5*)	ARCH="armv5" ;;
 		armv6*) ARCH="armv6" ;;
@@ -101,6 +100,7 @@ detect_arch () {
 		i386) ARCH="386" ;;
 		*)	terminate_with_error "Unsupported Architecture: ${ARCH}!" ;;
 	esac
+	info_echo "Detected Arch: ${ARCH}\n"
 }
 
 detect_os () {
@@ -109,6 +109,7 @@ detect_os () {
 		ubuntu) ;;
 		*)	terminate_with_error "Unsupported OS: ${OS}!" ;;
 	esac
+	info_echo "Detected OS: ${OS}\n"
 }
 
 # Detect Executable in PATH
@@ -243,8 +244,6 @@ treat_master_as_cloud () {
 system_init () {
 
 	# Initialize
-	detect_arch
-	detect_os
 	use_proxychains
 	create_tmp_dir
 
@@ -445,6 +444,9 @@ yurt_master_init () {
 	clean_tmp_dir
 }
 
+# Detect Arch & OS
+detect_arch
+detect_os
 # Check Arguments
 if [ ${argc} -lt 3 ]; then
 	print_usage
