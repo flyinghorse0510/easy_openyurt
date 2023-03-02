@@ -48,12 +48,13 @@ KUBEADM_INIT_IMG_REPO_ARGS=""
 TMP_DIR=""
 OS=""
 SYMBOL_WAITING=" >>>>> "
+TEMPLATE_DIR="template"
 
 # Configure Redirection and Logs
 exec 3>&1
 exec 4>&2
-exec 1>> easyOpenYurtInfo.log
-exec 2>> easyOpenYurtErr.log
+exec 1>> ${PWD}/easyOpenYurtInfo.log
+exec 2>> ${PWD}/easyOpenYurtErr.log
 
 # Text Color Definition
 COLOR_ERROR=1
@@ -61,33 +62,34 @@ COLOR_WARNING=3
 COLOR_SUCCESS=2
 COLOR_INFO=4
 color_echo () {
-    echo -e -n "$(tput setaf $1)[$(date +'%T')]\t$2$(tput sgr 0)"
+    echo -e -n "$(tput setaf $1)[$(date +'%T')] $2$(tput sgr 0)"
 }
 
 # Print Helper Function
 info_echo () {
-	echo -e -n "[$(date +'%T')]\t[Info] $1" # For Logs
+	echo -e -n "[$(date +'%T')] [Info] $1" # For Logs
 	color_echo ${COLOR_INFO} "[Info] $1" >&3 # For Output
 }
 success_echo () {
-	echo -e -n "[$(date +'%T')]\t[Success] $1" # For Logs
+	echo -e -n "[$(date +'%T')] [Success] $1" # For Logs
 	color_echo ${COLOR_SUCCESS} "[Success] $1" >&3 # For Output
 }
 warn_echo () {
-	echo -e -n "[$(date +'%T')]\t[Warn] $1" >&2 # For Logs
+	echo -e -n "[$(date +'%T')] [Warn] $1" >&2 # For Logs
 	color_echo ${COLOR_WARNING} "[Warn] $1" >&4 # For Output
 }
 error_echo () {
-	echo -e -n "[$(date +'%T')]\t[Error] $1" >&2 # For Logs
+	echo -e -n "[$(date +'%T')] [Error] $1" >&2 # For Logs
 	color_echo ${COLOR_ERROR} "[Error] $1" >&4 # For Output
 }
 print_usage () {
-	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args${SYMBOL_WAITING}>\n"
+	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>\n"
 }
 
 # Detect the Architecture
 detect_arch () {
 	ARCH=$(uname -m)
+
 	case $ARCH in
 		armv5*)	ARCH="armv5" ;;
 		armv6*) ARCH="armv6" ;;
@@ -102,7 +104,11 @@ detect_arch () {
 }
 
 detect_os () {
-	OS=$(cat /etc/issue | sed -n "s/\s*\(\S\S*\).*/\1/p" | head -1 | tr '[:upper:]' '[:lower:]')
+	OS=$(sed -n "s/\s*\(\S\S*\).*/\1/p" < /etc/issue | head -1 | tr '[:upper:]' '[:lower:]')
+	case ${OS} in
+		ubuntu) ;;
+		*)	terminate_with_error "Unsupported OS: ${OS}!" ;;
+	esac
 }
 
 # Detect Executable in PATH
@@ -149,7 +155,7 @@ exit_with_success_info () {
 choose_yes () {
 	msg=$1
 	warn_echo "${msg} [y/n]: "
-	read confirmation
+	read -r confirmation
 	case ${confirmation} in
 		[yY]*)
 			return 0
@@ -165,14 +171,21 @@ choose_yes () {
 create_tmp_dir () {
 	# Create Temporary Directory
 	info_echo "Creating Temporary Directory${SYMBOL_WAITING}"
-	mkdir -p ${HOME}/.yurt_tmp
+	TMP_DIR=$(mktemp -d yurt_tmp.XXXXXX) 
 	terminate_if_error "Failed to Create Temporary Directory!"
 }
 
 clean_tmp_dir () {
 	# Clean Temporary Directory
-	info_echo "Cleaning Temporary Directory${SYMBOL_WAITING}\n"
-	rm -rf ${HOME}/.yurt_tmp
+	info_echo "Cleaning Temporary Directory${SYMBOL_WAITING}"
+	rm -rf "${TMP_DIR}"
+	terminate_if_error "Failed to Clean Temporary Directory!"
+}
+
+download_to_tmp () {
+	url=$1
+	${PROXY_CMD} curl -sSLO --output-dir ${TMP_DIR} ${url}
+	return $?
 }
 
 # Proxy Settings
@@ -189,7 +202,52 @@ use_proxychains () {
 	fi
 }
 
+# Install Package
+install_package () {
+	packages=$*
+	case ${OS} in
+		ubuntu)
+			sudo ${PROXY_CMD} apt-get -qq update && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades ${packages}
+			return $?
+		;;
+		*)	terminate_with_error "Script Internal Error!" ;;
+	esac
+}
+
+# Adaptation for China Mainland
+adapt_for_cn () {
+	# China Mainland Adaptation
+	if choose_yes "Apply Adaptation & Optimization for China Mainland Users to Avoid Network Issues?"; then
+		info_echo "Applying China Mainland Adaptation${SYMBOL_WAITING}"
+		KUBEADM_INIT_IMG_REPO_ARGS="--image-repository docker.io/flyinghorse0510"
+		sudo sed -i "s/sandbox_image = .*/sandbox_image = \"docker.io/flyinghorse0510/pause:3.6\"/g" /etc/containerd/config.toml
+		terminate_if_error "Failed to Apply China Mainland Adaptation!"
+	else
+		info_echo "Adaptation WILL NOT be Applied!\n"
+	fi
+}
+
+# Node Role
+treat_master_as_cloud () {
+	# Whether to Treat Master Node as a Cloud Node
+	if choose_yes "Treat Master Node as a Cloud Node?"; then
+		info_echo "Master Node WILL also be Treated as a Cloud Node${SYMBOL_WAITING}\n"
+		kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule-
+		kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+	else
+		info_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
+	fi
+}
+
+
 system_init () {
+
+	# Initialize
+	detect_arch
+	detect_os
+	use_proxychains
+	create_tmp_dir
+
 	# Disable Swap
 	info_echo "Disabling Swap${SYMBOL_WAITING}"
 	sudo swapoff -a && sudo cp /etc/fstab /etc/fstab.old 	# Turn off Swap && Backup fstab file
@@ -201,46 +259,46 @@ system_init () {
 
 	# Install Dependencies
 	info_echo "Installing Dependencies${SYMBOL_WAITING}"
-	sudo ${PROXY_CMD} apt-get -qq update  && sudo ${PROXY_CMD} apt-get -qq install -y git wget curl build-essential apt-transport-https ca-certificates 
+	install_package git wget curl build-essential apt-transport-https ca-certificates 
 	terminate_if_error "Failed to Install Dependencies!"
 
 	# Install Containerd
 	info_echo "Installing Containerd(ver ${CONTAINERD_VERSION})${SYMBOL_WAITING}\n"
 	info_echo "Downloading Containerd${SYMBOL_WAITING}"
-	${PROXY_CMD} wget -q https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz 
+	download_to_tmp https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz 
 	terminate_if_error "Failed to Download Containerd!"
 
 	info_echo "Extracting Containerd${SYMBOL_WAITING}"
-	sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz
+	sudo tar Cxzvf /usr/local ${TMP_DIR}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz
 	terminate_if_error "Failed to Extract Containerd!"
 
 	# Start Containerd via Systemd
 	info_echo "Starting Containerd${SYMBOL_WAITING}"
-	${PROXY_CMD} wget -q https://raw.githubusercontent.com/containerd/containerd/main/containerd.service && sudo cp containerd.service /lib/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now containerd
+	download_to_tmp https://raw.githubusercontent.com/containerd/containerd/main/containerd.service && sudo cp ${TMP_DIR}/containerd.service /lib/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now containerd
 	terminate_if_error "Failed to Start Containerd!"
 
 	# Install Runc
 	info_echo "Installing Runc(ver ${RUNC_VERSION})${SYMBOL_WAITING}"
-	${PROXY_CMD} wget -q https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} && sudo install -m 755 runc.${ARCH} /usr/local/sbin/runc
+	download_to_tmp https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH} && sudo install -m 755 ${TMP_DIR}/runc.${ARCH} /usr/local/sbin/runc
 	terminate_if_error "Failed to Install Runc!"
 
 	# Install CNI Plugins
 	info_echo "Installing CNI Plugins(ver ${CNI_PLUGINS_VERSION})${SYMBOL_WAITING}"
-	${PROXY_CMD} wget -q https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz
+	download_to_tmp https://github.com/containernetworking/plugins/releases/download/v${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz && sudo mkdir -p /opt/cni/bin && sudo tar Cxzvf /opt/cni/bin ${TMP_DIR}/cni-plugins-linux-${ARCH}-v${CNI_PLUGINS_VERSION}.tgz
 	terminate_if_error "Failed to Install CNI Plugins!"
 
 	# Configure the Systemd Cgroup Driver
 	info_echo "Configuring the Systemd Cgroup Driver${SYMBOL_WAITING}"
-	containerd config default > config.toml && sudo mkdir -p /etc/containerd && sudo cp config.toml /etc/containerd/config.toml && sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml && sudo systemctl restart containerd
+	containerd config default > ${TMP_DIR}/config.toml && sudo mkdir -p /etc/containerd && sudo cp ${TMP_DIR}/config.toml /etc/containerd/config.toml && sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml && sudo systemctl restart containerd
 	terminate_if_error "Failed to Configure the Systemd Cgroup Driver!"
 
 	# Install Golang
 	info_echo "Installing Golang(ver ${GO_VERSION})${SYMBOL_WAITING}"
-	${PROXY_CMD} wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz
+	download_to_tmp https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf ${TMP_DIR}/go${GO_VERSION}.linux-${ARCH}.tar.gz
 	terminate_if_error "Failed to Install Golang!"
 
 	# Update PATH
-	info_echo "Updating PATH${SYMBOL_WAITING}\n"
+	info_echo "Updating PATH${SYMBOL_WAITING}"
 	case ${SHELL} in
 		/usr/bin/zsh | /bin/zsh | zsh)
 			echo "export PATH=\$PATH:/usr/local/go/bin" >> ${HOME}/.zshrc
@@ -249,9 +307,11 @@ system_init () {
 			echo "export PATH=\$PATH:/usr/local/go/bin" >> ${HOME}/.bashrc
 		;;
 		*)
+			error_echo "\n"
 			terminate_with_error "Unsupported Default Shell!"
 		;;
 	esac
+	terminate_if_error "Failed to Update PATH!"
 
 	# Enable IP Forwading & Br_netfilter
 	info_echo "Enabling IP Forwading & Br_netfilter${SYMBOL_WAITING}"
@@ -264,24 +324,22 @@ system_init () {
 
 	# Install Kubeadm, Kubelet, Kubectl
 	info_echo "Downloading Google Cloud Public Signing Key${SYMBOL_WAITING}"
-	sudo mkdir -p /etc/apt/keyrings && sudo ${PROXY_CMD} curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg  && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list # Download the Google Cloud public signing key && Add the Kubernetes apt repository
+	sudo mkdir -p /etc/apt/keyrings && sudo ${PROXY_CMD} curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list # Download the Google Cloud public signing key && Add the Kubernetes apt repository
 	terminate_if_error "Failed to Download the Google Cloud public signing key && Add the Kubernetes apt repository!"
 
 	sudo apt-mark unhold kubelet kubeadm kubectl
 	info_echo "Installing Kubeadm, Kubelet, Kubectl${SYMBOL_WAITING}"
-	sudo ${PROXY_CMD} apt-get -qq update && sudo ${PROXY_CMD} apt-get -qq install -y --allow-downgrades kubeadm=${KUBEADM_VERSION} kubelet=${KUBELET_VERSION} kubectl=${KUBECTL_VERSION} && sudo apt-mark hold kubelet kubeadm kubectl
+	install_package kubeadm=${KUBEADM_VERSION} kubelet=${KUBELET_VERSION} kubectl=${KUBECTL_VERSION} && sudo apt-mark hold kubelet kubeadm kubectl
 	terminate_if_error "Failed to Install Kubeadm, Kubelet, Kubectl!"
+
+	# Clean Up
+	clean_tmp_dir
 }
 
 kubeadm_pre_pull () {
-	# China Mainland Adaptation
-	if choose_yes "Apply Adaptation & Optimization for China Mainland Users to Avoid Network Issues?"; then
-		info_echo "Applying China Mainland Adaptation${SYMBOL_WAITING}\n"
-		KUBEADM_INIT_IMG_REPO_ARGS="--image-repository docker.io/flyinghorse0510"
-		sudo sed -i "s/sandbox_image = \".*\"/sandbox_image = \"docker.io/flyinghorse0510/pause:3.6\"/g" /etc/containerd/config.toml
-	else
-		info_echo "Adaptation WILL NOT be Applied!\n"
-	fi
+
+	# Initialize
+	adapt_for_cn
 
 	# Pre-Pulling Required Images
 	sudo kubeadm config images pull --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS}
@@ -290,6 +348,9 @@ kubeadm_pre_pull () {
 kubeadm_master_init () {
 	
 	funcArgc=$#
+
+	# Initialize
+	use_proxychains
 
 	info_echo "kubeadm init${SYMBOL_WAITING}"
 	if [ ${funcArgc} -eq 1 ]; then
@@ -301,7 +362,7 @@ kubeadm_master_init () {
 
 	# Make kubectl Work for Non-Root User
 	info_echo "Making kubectl Work for Non-Root User${SYMBOL_WAITING}"
-	mkdir -p $HOME/.kube && sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && sudo chown $(id -u):$(id -g) $HOME/.kube/config
+	mkdir -p $HOME/.kube && sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && sudo chown "$(id -u)":"$(id -g)" $HOME/.kube/config
 	terminate_if_error "Failed to Make kubectl Work for Non-Root User!"
 
 	# Install Pod Network
@@ -318,22 +379,70 @@ kubeadm_worker_join () {
 }
 
 yurt_master_init () {
-	# Whether to Treat Master Node as a Cloud Node
-	warn_echo "Treat Master Node as a Cloud Node? [y/n]: "
-	read confirmation
-	case ${confirmation} in
-		[yY]*)
-			kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule-
-			kubectl taint nodes --all node-role.kubernetes.io/control-plane-
-			warn_echo "Master Node WILL also be Treated as a Cloud Node\n"
-		;;
-		*)
-			warn_echo "Master Node WILL NOT be Treated as a Cloud Node\n"
-		;;
-	esac
+
+	# Initialize
+	use_proxychains
+	create_tmp_dir
+	
+	# Treat Master as Cloud Node
+	treat_master_as_cloud
 
 	# Install Helm
-	info_echo "Installing Helm${SYMBOL_WAITING}\n"
+	info_echo "Downloading Public Signing Key && Add the Helm Apt Repository${SYMBOL_WAITING}"
+	download_to_tmp https://baltocdn.com/helm/signing.asc && sudo mkdir -p /usr/share/keyrings && cat ${TMP_DIR}/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+	terminate_if_error "Failed to Download Public Signing Key && Add the Helm Apt Repository!"
+
+	info_echo "Installing Helm${SYMBOL_WAITING}"
+	install_package apt-transport-https && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list && install_package helm
+	terminate_if_error "Failed to Install Helm!"
+
+	# Add OpenYurt Repo with Helm
+	info_echo "Adding OpenYurt Repo with Helm${SYMBOL_WAITING}"
+	helm repo add openyurt https://openyurtio.github.io/openyurt-helm
+	terminate_if_error "Failed to Add OpenYurt Repo with Helm"
+
+	# Deploy yurt-app-manager
+	info_echo "Deploying yurt-app-manager${SYMBOL_WAITING}"
+	hhelm upgrade --install yurt-app-manager -n kube-system openyurt/yurt-app-manager
+	terminate_if_error "Failed to Deploy yurt-app-manager!"
+	kubectl get pod -n kube-system | grep yurt-app-manager	# For log
+	kubectl get svc -n kube-system | grep yurt-app-manager	# For log
+
+	# Create NodePool
+	info_echo "Creating NodePool${SYMBOL_WAITING}"
+	kubectl apply -f ${TEMPLATE_DIR}/nodePoolTemplate.yaml
+	terminate_if_error "Failed to Create NodePool!"
+
+	# Add Current Node into NodePool
+	info_echo "Adding Current Node into NodePool${SYMBOL_WAITING}"
+	currentNodeName=$(kubectl get nodes | sed -n "/.*control.*\|.*master.*/p" | head -1 | sed -n "s/\s*\(\S*\).*/\1/p") && kubectl label node ${currentNodeName} apps.openyurt.io/desired-nodepool=master
+	terminate_if_error "Failed to Add Current Node into NodePool!"
+
+	# Deploy yurt-controller-manager
+	info_echo "Deploying yurt-controller-manager${SYMBOL_WAITING}"
+	helm upgrade --install openyurt -n kube-system openyurt/openyurt
+	terminate_if_error "Failed to Deploy yurt-controller-manager!"
+	helm list -A # For log
+
+	# Setup raven-controller-manager Component
+	info_echo "Cloning Repo: raven-controller-manager${SYMBOL_WAITING}"
+	git clone --quiet https://github.com/openyurtio/raven-controller-manager.git ${TMP_DIR}
+	terminate_if_error "Failed to clone Clone Repo: raven-controller-manager!"
+
+	info_echo "Deploying raven-controller-manager${SYMBOL_WAITING}"
+	pushd ${TMP_DIR}/raven-controller-manager && git checkout v0.3.0 && make generate-deploy-yaml && kubectl apply -f _output/yamls/raven-controller-manager.yaml && popd
+	terminate_if_error "Failed to Deploy raven-controller-manager!"
+
+	# Setup raven-agent Component
+	info_echo "Cloning Repo: raven-agent${SYMBOL_WAITING}"
+	git clone --quiet https://github.com/openyurtio/raven.git ${TMP_DIR}
+	terminate_if_error "Failed to Clone Repo: raven-agent!"
+
+	info_echo "Deploying raven-agent${SYMBOL_WAITING}"
+	pushd ${TMP_DIR}/raven && git checkout v0.3.0 && FORWARD_NODE_IP=true make deploy && popd
+	terminate_if_error "Failed to Deploy raven-controller-manager!"
+
+	clean_tmp_dir
 }
 
 # Check Arguments
@@ -382,7 +491,7 @@ case ${operationObject} in
 				else
 					kubeadm_master_init
 				fi
-				exit_with_success_info "Init Kubernetes Cluster Master Node Successfully!"
+				exit_with_success_info "Successfully Init Kubernetes Cluster Master Node!"
 			;;
 			worker)
 				if [ ${operation} != "join" ]; then
@@ -407,10 +516,13 @@ case ${operationObject} in
 		case ${nodeRole} in
 			master)
 				case ${operation} in
-					init)	terminate_with_error "Temporary Unavailable API!" ;;
+					init)
+						yurt_master_init
+						exit_with_success_info "Successfully Init OpenYurt Cluster Master Node!"
+					;;
 					expand) terminate_with_error "Temporary Unavailable API!" ;;
 					*)
-						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args${SYMBOL_WAITING}>\n"
+						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args...>\n"
 						terminate_with_error "Invalid Operation: [operation]->${operation}"
 					;;
 				esac
