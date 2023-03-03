@@ -2,7 +2,7 @@
 
 # MIT License
 # 
-# Copyright (c) 2023 Haoyuan Ma
+# Copyright (c) 2023 Haoyuan Ma <flyinghorse0510@zju.edu.cn>
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -84,6 +84,18 @@ error_echo () {
 }
 print_usage () {
 	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>\n"
+}
+print_welcome () {
+	color_echo ${COLOR_SUCCESS} "<<<<<<<<< EasyOpenYurt v0.1.0b >>>>>>>>>\n" >&3
+}
+print_start_warning () {
+	warn_echo "THIS IS AN EXPERIMENTAL SCRIPT DEVELOPED PERSONALLY\n"
+	warn_echo "DO NOT ATTEMPT TO USE IN PRODUCTION ENVIRONMENT!\n"
+	warn_echo "MAKE SURE TO BACK UP YOUR SYSTEM AND TAKE CARE!\n"
+}
+print_start_info () {
+	success_echo "Stdout Log -> ${PWD}/easyOpenYurtInfo.log\n"
+	success_echo "Stderr Log -> ${PWD}/easyOpenYurtErr.log\n"
 }
 
 # Detect the Architecture
@@ -340,8 +352,10 @@ kubeadm_pre_pull () {
 	# Initialize
 	adapt_for_cn
 
-	# Pre-Pulling Required Images
+	# Pre-Pull Required Images
+	info_echo "Pre-Pulling Required Images${SYMBOL_WAITING}"
 	sudo kubeadm config images pull --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS}
+	terminate_if_error "Failed to Pre-Pull Required Images!"
 }
 
 kubeadm_master_init () {
@@ -353,9 +367,9 @@ kubeadm_master_init () {
 
 	info_echo "kubeadm init${SYMBOL_WAITING}"
 	if [ ${funcArgc} -eq 1 ]; then
-		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress}
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress} | tee -a ${PWD}/easyOpenYurtInfo.log > ${PWD}/masterNodeInfo
 	else
-		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16"
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" | tee -a ${PWD}/easyOpenYurtInfo.log > ${PWD}/masterNodeInfo
 	fi
 	terminate_if_error "kubeadm init Failed!"
 
@@ -402,7 +416,7 @@ yurt_master_init () {
 
 	# Deploy yurt-app-manager
 	info_echo "Deploying yurt-app-manager${SYMBOL_WAITING}"
-	hhelm upgrade --install yurt-app-manager -n kube-system openyurt/yurt-app-manager
+	helm upgrade --install yurt-app-manager -n kube-system openyurt/yurt-app-manager
 	terminate_if_error "Failed to Deploy yurt-app-manager!"
 	kubectl get pod -n kube-system | grep yurt-app-manager	# For log
 	kubectl get svc -n kube-system | grep yurt-app-manager	# For log
@@ -443,6 +457,11 @@ yurt_master_init () {
 
 	clean_tmp_dir
 }
+
+# Print Warn and Info
+print_welcome
+print_start_warning
+print_start_info
 
 # Detect Arch & OS
 detect_arch
