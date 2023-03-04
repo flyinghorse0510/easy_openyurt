@@ -423,7 +423,7 @@ yurt_master_init () {
 
 	# Create NodePool
 	info_echo "Creating NodePool${SYMBOL_WAITING}"
-	kubectl apply -f ${TEMPLATE_DIR}/nodePoolTemplate.yaml
+	kubectl apply -f ${TEMPLATE_DIR}/masterNodePoolTemplate.yaml
 	terminate_if_error "Failed to Create NodePool!"
 
 	# Add Current Node into NodePool
@@ -456,6 +456,22 @@ yurt_master_init () {
 	terminate_if_error "Failed to Deploy raven-controller-manager!"
 
 	clean_tmp_dir
+}
+
+yurt_master_expand () {
+	nodeName=$1
+	nodeType=$2
+	case ${nodeType} in
+		edge)	isEdgeWorker=true ;;
+		cloud)	isEdgeWorker=false ;;
+		*)	terminate_with_error "Script Internal Error!" ;;
+	esac
+	# Label Worker Node as Cloud/Edge
+	info_echo "Labeling Node: ${nodeName} as ${nodeType}${SYMBOL_WAITING}"
+	kubectl label node ${nodeName} openyurt.io/is-edge-worker=${isEdgeWorker}
+	terminate_if_error "Failed to Label Node: ${nodeName} as ${nodeType}"
+	
+
 }
 
 # Print Warn and Info
