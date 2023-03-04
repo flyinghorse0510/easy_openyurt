@@ -252,6 +252,15 @@ treat_master_as_cloud () {
 	fi
 }
 
+# Write Master Node Info to YAML
+write_master_node_info_to_yaml () {
+	controlPlaneHost=$1
+	controlPlanePort=$2
+	controlPlaneToken=$3
+	discoveryTokenHash=$4
+	echo -n -e "controlPlaneHost: ${controlPlaneHost}\ncontrolPlanePort: ${controlPlanePort}\ncontrolPlaneToken: ${controlPlaneToken}\ndiscoveryTokenHash: ${discoveryTokenHash}" | tee ${PWD}/masterKey.yaml
+}
+
 
 system_init () {
 
@@ -364,12 +373,13 @@ kubeadm_master_init () {
 
 	# Initialize
 	use_proxychains
+	create_tmp_dir
 
 	info_echo "kubeadm init${SYMBOL_WAITING}"
 	if [ ${funcArgc} -eq 1 ]; then
-		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress} | tee -a ${PWD}/easyOpenYurtInfo.log > ${PWD}/masterNodeInfo
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" --apiserver-advertise-address=${apiserverAdvertiseAddress} | tee -a ${PWD}/easyOpenYurtInfo.log > ${TMP_DIR}/masterNodeInfo
 	else
-		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" | tee -a ${PWD}/easyOpenYurtInfo.log > ${PWD}/masterNodeInfo
+		sudo kubeadm init --kubernetes-version ${KUBE_VERSION} ${KUBEADM_INIT_IMG_REPO_ARGS} --pod-network-cidr="10.244.0.0/16" | tee -a ${PWD}/easyOpenYurtInfo.log > ${TMP_DIR}/masterNodeInfo
 	fi
 	terminate_if_error "kubeadm init Failed!"
 
@@ -382,6 +392,14 @@ kubeadm_master_init () {
 	info_echo "Installing Pod Network${SYMBOL_WAITING}"
 	${PROXY_CMD} kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 	terminate_if_error "Failed to Install Pod Network!"
+
+	# Extract Master Node Information from Logs
+	info_echo "Extracting Master Node Information from Logs${SYMBOL_WAITING}"
+	ipPortToken=$(sed -n "/.*kubeadm join.*/p" < ${TMP_DIR}/masterNodeInfo | sed -n "s/.*join \(.*\):\(\S*\) --token \(\S*\).*/\1 \2 \3/p") && discoveryTokenHash=$(sed -n "/.*sha256:.*/p" < ${TMP_DIR}/masterNodeInfo | sed -n "s/.*\(sha256:\S*\).*/\1/p") && write_master_node_info_to_yaml ${ipPortToken} ${discoveryTokenHash}
+	terminate_if_error "Failed to Extract Master Node Information from Logs!"
+
+	# Clean Up
+	clean_tmp_dir
 }
 
 kubeadm_worker_join () {
