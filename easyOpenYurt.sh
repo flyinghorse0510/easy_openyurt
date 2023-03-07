@@ -446,7 +446,7 @@ yurt_master_init () {
 	waitCount=1
 	while [ "$(kubectl get pod -n kube-system | grep yurt-app-manager | sed -n "s/\s*\(\S*\)\s*\(\S*\)\s*\(\S*\).*/\2 \3/p")" != "1/1 Running" ]
 	do
-		warn_echo "Waiting for yurt-app-manager to be Ready [${waitCount}s]"
+		warn_echo "Waiting for yurt-app-manager to be Ready [${waitCount}s]\n"
 		((waitCount=waitCount+1))
 		sleep 1
 	done
@@ -467,7 +467,7 @@ yurt_master_init () {
 
 	# Setup raven-controller-manager Component
 	info_echo "Cloning Repo: raven-controller-manager${SYMBOL_WAITING}"
-	git clone --quiet https://github.com/openyurtio/raven-controller-manager.git ${TMP_DIR}
+	git clone --quiet https://github.com/openyurtio/raven-controller-manager.git ${TMP_DIR}/raven-controller-manager
 	terminate_if_error "Failed to clone Clone Repo: raven-controller-manager!"
 
 	info_echo "Deploying raven-controller-manager${SYMBOL_WAITING}"
@@ -476,7 +476,7 @@ yurt_master_init () {
 
 	# Setup raven-agent Component
 	info_echo "Cloning Repo: raven-agent${SYMBOL_WAITING}"
-	git clone --quiet https://github.com/openyurtio/raven.git ${TMP_DIR}
+	git clone --quiet https://github.com/openyurtio/raven.git ${TMP_DIR}/raven-agent
 	terminate_if_error "Failed to Clone Repo: raven-agent!"
 
 	info_echo "Deploying raven-agent${SYMBOL_WAITING}"
@@ -511,7 +511,7 @@ yurt_master_expand () {
 	waitCount=1
 	while [ "$(kubectl get nodes | sed -n "/.*${nodeName}.*/p" | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")" != "Ready" ]
 	do
-		warn_echo "Waiting for Worker Node to be Ready [${waitCount}s]"
+		warn_echo "Waiting for Worker Node to be Ready [${waitCount}s]\n"
 		((waitCount=waitCount+1))
 		sleep 1
 	done
