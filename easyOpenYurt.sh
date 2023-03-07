@@ -431,7 +431,7 @@ yurt_master_init () {
 
 	# Install Kustomize
 	info_echo "Installing Kustomize${SYMBOL_WAITING}"
-	download_to_tmp "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" && chmod u+x ${TMP_DIR}/install_kustomize.sh && ${TMP_DIR}/install_kustomize.sh && sudo cp ${TMP_DIR}/kustomize /usr/local/bin
+	download_to_tmp "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" && chmod u+x ${TMP_DIR}/install_kustomize.sh && ${TMP_DIR}/install_kustomize.sh ${TMP_DIR} && sudo cp ${TMP_DIR}/kustomize /usr/local/bin
 	terminate_if_error "Failed to Install Kustomize!"
 
 	# Add OpenYurt Repo with Helm
