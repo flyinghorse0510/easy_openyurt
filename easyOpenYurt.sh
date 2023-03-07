@@ -485,7 +485,7 @@ yurt_master_init () {
 	terminate_if_error "Failed to Clone Repo: raven-agent!"
 
 	info_echo "Deploying raven-agent${SYMBOL_WAITING}"
-	pushd ${TMP_DIR}/raven && git checkout v0.3.0 && FORWARD_NODE_IP=true make deploy && popd
+	pushd ${TMP_DIR}/raven-agent && git checkout v0.3.0 && FORWARD_NODE_IP=true make deploy && popd
 	terminate_if_error "Failed to Deploy raven-controller-manager!"
 
 	clean_tmp_dir
