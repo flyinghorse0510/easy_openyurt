@@ -37,7 +37,7 @@ By default, **logs will be written into two files**: `easyOpenYurtErr.log` and `
 ### 2.1 Clone the Repo
 
 ```bash
-git clone 
+git clone https://github.com/flyinghorse0510/easy_openyurt.git
 cd easy_openyurt
 chmod u+x easyOpenYurt.sh
 ```
