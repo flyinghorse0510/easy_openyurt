@@ -429,6 +429,11 @@ yurt_master_init () {
 	install_package apt-transport-https && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list && install_package helm
 	terminate_if_error "Failed to Install Helm!"
 
+	# Install Kustomize
+	info_echo "Installing Kustomize${SYMBOL_WAITING}"
+	download_to_tmp "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" && chmod u+x ${TMP_DIR}/install_kustomize.sh && ${TMP_DIR}/install_kustomize.sh && sudo cp ${TMP_DIR}/kustomize /usr/local/bin
+	terminate_if_error "Failed to Install Kustomize!"
+
 	# Add OpenYurt Repo with Helm
 	info_echo "Adding OpenYurt Repo with Helm${SYMBOL_WAITING}"
 	helm repo add openyurt https://openyurtio.github.io/openyurt-helm
