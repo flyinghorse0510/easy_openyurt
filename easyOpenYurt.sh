@@ -84,7 +84,7 @@ error_echo () {
 	echo -e -n "[$(date +'%T')] [Error] $1" >&2 # For Logs
 	color_echo ${COLOR_ERROR} "[Error] $1" >&4 # For Output
 }
-print_usage () {
+print_general_usage () {
 	info_echo "Usage: $0 [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>\n"
 }
 print_welcome () {
@@ -399,6 +399,7 @@ kubeadm_master_init () {
 	info_echo "Extracting Master Node Information from Logs${SYMBOL_WAITING}"
 	ipPortToken=$(sed -n "/.*kubeadm join.*/p" < ${TMP_DIR}/masterNodeInfo | sed -n "s/.*join \(.*\):\(\S*\) --token \(\S*\).*/\1 \2 \3/p") && discoveryTokenHash=$(sed -n "/.*sha256:.*/p" < ${TMP_DIR}/masterNodeInfo | sed -n "s/.*\(sha256:\S*\).*/\1/p") && write_master_node_info_to_yaml ${ipPortToken} ${discoveryTokenHash}
 	terminate_if_error "Failed to Extract Master Node Information from Logs!"
+	success_echo "Master Node Key Information has been Written to ${PWD}/masterKey.yaml! You can Check for Details.\n"
 
 	# Clean Up
 	clean_tmp_dir
@@ -531,6 +532,7 @@ yurt_master_expand () {
 		if [ -z "$(echo ${pod} | sed -n "/.*yurt-hub.*/p")" ]; then
 			podNameSpace=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\1/p")
 			podName=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")
+			info_echo "Restarting Pod: ${podNameSpace}=>${podName}${SYMBOL_WAITING}"
 			kubectl -n ${podNameSpace} delete pod ${podName}
 			terminate_if_error "Failed to Restart Pods in the Worker Node!"
 		fi
@@ -572,7 +574,7 @@ detect_arch
 detect_os
 # Check Arguments
 if [ ${argc} -lt 3 ]; then
-	print_usage
+	print_general_usage
 	terminate_with_error "Too Few Arguments!"
 fi
 
@@ -593,7 +595,7 @@ case ${operationObject} in
 				exit_with_success_info "Init System Successfully!"
 			;;
 			*)
-				print_usage
+				print_general_usage
 				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
 			;;
 		esac
@@ -632,7 +634,7 @@ case ${operationObject} in
 				exit_with_success_info "Join Kubernetes Cluster Successfully!"
 			;;
 			*)
-				print_usage
+				print_general_usage
 				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
 			;;
 		esac
@@ -684,13 +686,13 @@ case ${operationObject} in
 				esac
 			;;
 			*)
-				print_usage
+				print_general_usage
 				terminate_with_error "Invalid NodeRole: [nodeRole]->${nodeRole}"
 			;;
 		esac
     ;;
     *)
-        print_usage
+        print_general_usage
 		terminate_with_error "Invalid Object: [object]->${operationObject}"
 	;;
 esac

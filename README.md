@@ -11,25 +11,35 @@ This script can help you to set up an OpenYurt cluster quickly and easily for de
 
 Additionally, several YAML template files which basically shows how to deploy services on OpenYurt are provided along with the script.
 
-Currently supported and tested platforms:
+**Currently supported and tested platforms:**
 
 |      OS      | ARCH  |
 | :----------: | :---: |
 | Ubuntu 22.04 | amd64 |
 | Ubuntu 20.04 | amd64 |
 
-**<u>Warning:</u>** This is an experimental script under development, **DO NOT** attempt to use it in production environment! Back up your system in advance to avoid possible damage.
+**Currently supported and tested Shells:** `zsh`, `bash`
+
+**<u>Warning:</u>** <u>This is an experimental script under development, **DO NOT** attempt to use it in production environment! Back up your system in advance to avoid possible damage.</u>
 
 Finally, the script is well commented. You can look at the source and see what it is going to do before running. Have a good day!
 
 ## 2. Usage
+
+**General Usage:**
+
+```bash
+./easyOpenYurt.sh [object: system | kube | yurt] [nodeRole: master | worker] [operation: init | join | expand] <Args...>
+```
+
+By default, **logs will be written into two files**: `easyOpenYurtErr.log` and `easyOpenYurtInfo.log` **in the current directory**.
 
 ### 2.1 Clone the Repo
 
 ```bash
 git clone 
 cd easy_openyurt
-chmod +x easyOpenYurt.sh
+chmod u+x easyOpenYurt.sh
 ```
 
 ### 2.2 Configure System on Master / Worker Node
@@ -85,7 +95,7 @@ On worker node, to join the kubernetes cluster, use the following command:
 
 ```bash
 ./easyOpenYurt.sh kube worker join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]
-# You can find these parameters in file `masterKey.yaml` previously introduced in the master node
+# You can find these parameters in file `masterKey.yaml` previously introduced on the master node
 # For Example:
 # ./easyOpenYurt.sh kube worker join 192.168.18.2 6443 xxxxxxxxxx sha256:xxxxxxxxxx
 ```
@@ -102,7 +112,26 @@ On master node, to deploy OpenYurt, use the following command:
 
 #### 2.4.2 Deploy on Worker Node
 
+**<u>Warning:</u>** <u>You should **ONLY** deploy OpenYurt on nodes that already have been joined in the Kubernetes cluster.</u>
 
+**<u>Firstly, on the worker node</u>**, use the following command:
+
+```bash
+./easyOpenYurt.sh yurt worker join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]
+# You can find these parameters in file `masterKey.yaml` previously introduced on the master node
+# For Example:
+# ./easyOpenYurt.sh yurt worker join 192.168.18.2 6443 xxxxxxxxxx
+```
+
+**<u>Then, on the master node,</u>** use the following command:
+
+```bash
+./easyOpenYurt.sh yurt master expand [nodeType: edge | cloud] [nodeName]
+# [nodeType] is the type of the worker node when joining the OpenYurt cluster (edge / cloud)
+# [nodeName] is the name of the worker node that you want to join to the OpenYurt cluster
+# For example:
+# ./easyOpenYurt.sh yurt master expand edge myEdgeNode0
+```
 
 ## 3. License
 
