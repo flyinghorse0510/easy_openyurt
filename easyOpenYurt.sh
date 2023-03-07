@@ -444,7 +444,7 @@ yurt_master_init () {
 	# Create NodePool
 	info_echo "Creating NodePool${SYMBOL_WAITING}"
 	waitCount=1
-	while [ $(kubectl get pod -n kube-system | grep yurt-app-manager | sed -n "s/\s*\(\S*\)\s*\(\S*\)\s*\(\S*\).*/\2 \3/p") != "1/1 Running" ]
+	while [ "$(kubectl get pod -n kube-system | grep yurt-app-manager | sed -n "s/\s*\(\S*\)\s*\(\S*\)\s*\(\S*\).*/\2 \3/p")" != "1/1 Running" ]
 	do
 		warn_echo "Waiting for yurt-app-manager to be Ready [${waitCount}s]"
 		((waitCount=waitCount+1))
@@ -509,7 +509,7 @@ yurt_master_expand () {
 
 	# Wait for Worker Node to be Ready
 	waitCount=1
-	while [ $(kubectl get nodes | sed -n "/.*${nodeName}.*/p" | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p") != "Ready" ]
+	while [ "$(kubectl get nodes | sed -n "/.*${nodeName}.*/p" | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")" != "Ready" ]
 	do
 		warn_echo "Waiting for Worker Node to be Ready [${waitCount}s]"
 		((waitCount=waitCount+1))
@@ -523,7 +523,7 @@ yurt_master_expand () {
 	IFS=$'\n'
 	while read -r pod
 	do
-		if [ -z $(echo ${pod} | sed -n "/.*yurt-hub.*/p") ]; then
+		if [ -z "$(echo ${pod} | sed -n "/.*yurt-hub.*/p")" ]; then
 			podNameSpace=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\1/p")
 			podName=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")
 			kubectl -n ${podNameSpace} delete pod ${podName}
@@ -576,7 +576,7 @@ case ${operationObject} in
 	system)
 		case ${nodeRole} in
 			master | worker)
-				if [ ${operation} != "init" ]; then
+				if [ "${operation}" != "init" ]; then
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init\n"
 					terminate_with_error "Invalid Operation: [operation]->${operation}"
 				fi
@@ -596,7 +596,7 @@ case ${operationObject} in
     kube)
 		case ${nodeRole} in
 			master)
-				if [ ${operation} != "init" ]; then
+				if [ "${operation}" != "init" ]; then
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} init <serverAdvertiseAddress>\n"
 					terminate_with_error "Invalid Operation: [operation]->${operation}"
 				fi
@@ -614,7 +614,7 @@ case ${operationObject} in
 				exit_with_success_info "Successfully Init Kubernetes Cluster Master Node!"
 			;;
 			worker)
-				if [ ${operation} != "join" ]; then
+				if [ "${operation}" != "join" ]; then
 					info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]\n"
 					terminate_with_error "Invalid Operation: [operation]->${operation}"
 				fi
