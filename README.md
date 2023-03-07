@@ -34,7 +34,7 @@ chmod +x easyOpenYurt.sh
 
 ### 2.2 Configure System on Master / Worker Node
 
-> If you already have an existing kubernetes cluster, you can directly go to [2.4 Deploy OpenYurt on Kubernetes Cluster](#2.4-deploy-openyurt-on-kubernetes-cluster)
+> If you already have an existing kubernetes cluster, you can directly go to [2.4 Deploy OpenYurt on Kubernetes Cluster](#24-deploy-openyurt-on-kubernetes-cluster)
 
 This procedure will install and configure required components in your system, such as:
 
@@ -61,7 +61,7 @@ On master node, use the following command:
 ./easyOpenYurt.sh kube master init
 ```
 
-By default, [the `kubeadm` uses the network interface associated with the default gateway to set the advertise address for this particular control-plane(master) node's API server]([Creating a cluster with kubeadm | Kubernetes](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)). To use a different network interface, provide an extra parameter to the script:
+By default, [the `kubeadm` uses the network interface associated with the default gateway to set the advertise address for this particular control-plane(master) node's API server](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/). To use a different network interface, provide an extra parameter to the script:
 
 ```bash
 ./easyOpenYurt.sh kube master init <serverAdvertiseAddress>
@@ -84,10 +84,10 @@ discoveryTokenHash: sha256:xxxxxxxxxx
 On worker node, to join the kubernetes cluster, use the following command:
 
 ```bash
-./easyOpenYurt.sh kube node join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]
+./easyOpenYurt.sh kube worker join [controlPlaneHost] [controlPlanePort] [controlPlaneToken] [discoveryTokenHash]
 # You can find these parameters in file `masterKey.yaml` previously introduced in the master node
 # For Example:
-# ./easyOpenYurt.sh kube node join 192.168.18.2 6443 xxxxxxxxxx sha256:xxxxxxxxxx
+# ./easyOpenYurt.sh kube worker join 192.168.18.2 6443 xxxxxxxxxx sha256:xxxxxxxxxx
 ```
 
 ### 2.4 Deploy OpenYurt on Kubernetes Cluster

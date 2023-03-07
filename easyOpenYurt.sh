@@ -39,7 +39,9 @@ nodeRole=$2
 operation=$3
 apiserverAdvertiseAddress=$4
 controlPlaneHost=$4
+nodeType=$4
 controlPlanePort=$5
+nodeName=$5
 controlPlaneToken=$6
 discoveryTokenHash=$7
 ARCH=""
@@ -441,7 +443,15 @@ yurt_master_init () {
 
 	# Create NodePool
 	info_echo "Creating NodePool${SYMBOL_WAITING}"
+	waitCount=1
+	while [ $(kubectl get pod -n kube-system | grep yurt-app-manager | sed -n "s/\s*\(\S*\)\s*\(\S*\)\s*\(\S*\).*/\2 \3/p") != "1/1 Running" ]
+	do
+		warn_echo "Waiting for yurt-app-manager to be Ready [${waitCount}s]"
+		((waitCount=waitCount+1))
+		sleep 1
+	done
 	kubectl apply -f ${TEMPLATE_DIR}/masterNodePoolTemplate.yaml
+	kubectl apply -f ${TEMPLATE_DIR}/workerNodePoolTemplate.yaml
 	terminate_if_error "Failed to Create NodePool!"
 
 	# Add Current Node into NodePool
@@ -477,19 +487,74 @@ yurt_master_init () {
 }
 
 yurt_master_expand () {
-	nodeName=$1
-	nodeType=$2
-	case ${nodeType} in
-		edge)	isEdgeWorker=true ;;
-		cloud)	isEdgeWorker=false ;;
-		*)	terminate_with_error "Script Internal Error!" ;;
-	esac
+
+	# Initialize
+	isEdgeWorker=$1
+	nodeName=$2
+
 	# Label Worker Node as Cloud/Edge
 	info_echo "Labeling Node: ${nodeName} as ${nodeType}${SYMBOL_WAITING}"
 	kubectl label node ${nodeName} openyurt.io/is-edge-worker=${isEdgeWorker}
 	terminate_if_error "Failed to Label Node: ${nodeName} as ${nodeType}"
-	
 
+	# Activate the Node Autonomous Mode
+	info_echo "Activating the Autonomous Mode of Node: ${nodeName}${SYMBOL_WAITING}"
+	kubectl annotate node ${nodeName} node.beta.openyurt.io/autonomy=true
+	terminate_if_error "Failed to Activate the Node Autonomous Mode!"
+
+	# Add Worker Node into NodePool
+	info_echo "Adding Worker Node into NodePool${SYMBOL_WAITING}"
+	kubectl label node ${nodeName} apps.openyurt.io/desired-nodepool=worker
+	terminate_if_error "Failed to Add Worker Node into NodePool!"
+
+	# Wait for Worker Node to be Ready
+	waitCount=1
+	while [ $(kubectl get nodes | sed -n "/.*${nodeName}.*/p" | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p") != "Ready" ]
+	do
+		warn_echo "Waiting for Worker Node to be Ready [${waitCount}s]"
+		((waitCount=waitCount+1))
+		sleep 1
+	done
+
+	# Restart Pods in the Worker Node
+	info_echo "Restarting Pods in the Worker Node${SYMBOL_WAITING}"
+	existingPods=$(kubectl get pod -A -o wide | grep ${nodeName})
+	originalIFS=${IFS}	# Save IFS
+	IFS=$'\n'
+	while read -r pod
+	do
+		if [ -z $(echo ${pod} | sed -n "/.*yurt-hub.*/p") ]; then
+			podNameSpace=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\1/p")
+			podName=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")
+			kubectl -n ${podNameSpace} delete pod ${podName}
+			terminate_if_error "Failed to Restart Pods in the Worker Node!"
+		fi
+	done <<< ${existingPods}
+	IFS=${originalIFS}	# Restore IFS
+}
+
+yurt_worker_join () {
+
+	# Initialize
+	controlPlaneHost=$1
+	controlPlanePort=$2
+	controlPlaneToken=$3
+	create_tmp_dir
+
+	# Set up Yurthub
+	info_echo "Setting up Yurthub${SYMBOL_WAITING}"
+	cat ${TEMPLATE_DIR}/yurthubTemplate.yaml | sed -e "s|__kubernetes_master_address__|${controlPlaneHost}:${controlPlanePort}|" -e "s|__bootstrap_token__|${controlPlaneToken}|" > ${TMP_DIR}/yurthub-ack.yaml && sudo cp ${TMP_DIR}/yurthub-ack.yaml /etc/kubernetes/manifests
+	terminate_if_error "Failed to Set up Yurthub!"
+
+	# Configure Kubelet
+	info_echo "Configuring Kubelet${SYMBOL_WAITING}"
+	sudo mkdir -p /var/lib/openyurt && sudo cp ${TEMPLATE_DIR}/kubeletTemplate.conf /var/lib/openyurt/kubelet.conf && \
+	sudo sed -i "s|KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=\/etc\/kubernetes\/bootstrap-kubelet.conf\ --kubeconfig=\/etc\/kubernetes\/kubelet.conf|KUBELET_KUBECONFIG_ARGS=--kubeconfig=\/var\/lib\/openyurt\/kubelet.conf|g" /etc/systemd/system/kubelet.service.d/10-kubeadm.conf && \
+	sudo systemctl daemon-reload && sudo systemctl restart kubelet
+	terminate_if_error "Failed to Configure Kubelet!"
+
+	# Clean Up
+	clean_tmp_dir
 }
 
 # Print Warn and Info
@@ -575,7 +640,22 @@ case ${operationObject} in
 						yurt_master_init
 						exit_with_success_info "Successfully Init OpenYurt Cluster Master Node!"
 					;;
-					expand) terminate_with_error "Temporary Unavailable API!" ;;
+					expand)
+						if [ ${argc} -ne 5 ]; then
+							info_echo "Usage: $0 ${operationObject} ${nodeRole} expand [nodeType: edge | cloud] [nodeName]\n"
+							terminate_with_error "Invalid Arguments: Need 5, Got ${argc}"
+						fi
+						case ${nodeType} in
+							edge)	isEdgeWorker=true ;;
+							cloud)	isEdgeWorker=false ;;
+							*)
+								info_echo "Usage: $0 ${operationObject} ${nodeRole} expand [nodeType: edge | cloud] [nodeName]\n"
+								terminate_with_error "Invalid NodeType: [nodeType]->${nodeType}"
+							;;
+						esac
+						yurt_master_expand ${isEdgeWorker} ${nodeName}
+						exit_with_success_info "Successfully Expand OpenYurt to Node[${nodeName}] as Type[${nodeType}]"
+					;;
 					*)
 						info_echo "Usage: $0 ${operationObject} ${nodeRole} [init | expand] <Args...>\n"
 						terminate_with_error "Invalid Operation: [operation]->${operation}"
@@ -589,6 +669,8 @@ case ${operationObject} in
 							info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
 							terminate_with_error "Invalid Arguments: Need 6, Got ${argc}"
 						fi
+						yurt_worker_join ${controlPlaneHost} ${controlPlanePort} ${controlPlaneToken}
+						exit_with_success_info "Successfully Joined OpenYurt Cluster!"
 					;;
 					*)
 						info_echo "Usage: $0 ${operationObject} ${nodeRole} join [controlPlaneHost] [controlPlanePort] [controlPlaneToken]\n"
