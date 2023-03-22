@@ -24,19 +24,19 @@ spec:
                 image: nginx:1.14.2
   topology:
     pools:
-    - name: worker
+    - name: singapore
       nodeSelectorTerm:
         matchExpressions:
           - key: apps.openyurt.io/nodepool
             operator: In
             values:
-            - worker
-      replicas: 3
-    - name: master
+            - singapore
+      replicas: 2
+    - name: hongkong
       nodeSelectorTerm:
         matchExpressions:
         - key: apps.openyurt.io/nodepool
           operator: In
           values:
-          - master
+          - hongkong
       replicas: 2
