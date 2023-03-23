@@ -225,7 +225,7 @@ func DownloadToTmpDir(urlTemplate string, pars ...any) (string, error) {
 	url := fmt.Sprintf(urlTemplate, pars...)
 	fileName := path.Base(url)
 	filePath := systemEnvironment.tmpDir + "/" + fileName
-	_, err := ExecShellCmd("curl -sSLO --output-dir %s %s", systemEnvironment.tmpDir, url)
+	_, err := ExecShellCmd("curl -sSL --output %s %s", filePath, url)
 	return filePath, err
 }
 

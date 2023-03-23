@@ -190,6 +190,7 @@ func YurtMasterInit() {
 		}
 	}
 
+	// Install kustomize
 	if !yurtEnvironment.kustomizeInstalled {
 		// Download kustomize helper script
 		WaitPrintf("Downloading kustomize")
@@ -300,7 +301,7 @@ func YurtMasterExpand() {
 	podsToBeRestarted := strings.Split(shellOutput, "\n")
 	for _, pods := range podsToBeRestarted {
 		podsInfo := strings.Split(pods, " ")
-		WaitPrintf("Restarting pod: %s => %s\n", podsInfo[0], podsInfo[1])
+		WaitPrintf("Restarting pod: %s => %s", podsInfo[0], podsInfo[1])
 		_, err = ExecShellCmd("kubectl -n %s delete pod %s", podsInfo[0], podsInfo[1])
 		CheckErrorWithTagAndMsg(err, "Failed to restart pods in the worker node!\n")
 	}
