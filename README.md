@@ -253,3 +253,136 @@ To view the help and all available optional parameters, add `-h` to see more det
 #   -worker-node-name string
 #         Worker node name(**REQUIRED**)
 ```
+
+## 3. Create NodePool and deploy apps
+Here we use a docker image named ```lrq619/srcnn``` as our example.
+
+Below instructions should all be executed on master node.
+
+### 3.1 Create NodePool
+Create file called cloud.yaml
+```yaml
+apiVersion: apps.openyurt.io/v1alpha1
+kind: NodePool
+metadata:
+  name: beijing # can change to your own name
+spec:
+  type: Cloud
+```
+Create file called edge.yaml
+```yaml
+apiVersion: apps.openyurt.io/v1alpha1
+kind: NodePool
+metadata:
+  name: hangzhou # can change to your own name
+spec:
+  type: Edge
+  annotations:
+    apps.openyurt.io/example: test-hangzhou
+  labels:
+    apps.openyurt.io/example: test-hangzhou
+  taints:
+  - key: apps.openyurt.io/example
+    value: test-hangzhou
+    effect: NoSchedule
+```
+run
+```bash
+kubectl apply -f cloud.yaml
+kubectl apply -f edge.yaml
+kubectl get np
+```
+the output should be similar to 
+```bash
+NAME       TYPE    READYNODES   NOTREADYNODES   AGE
+beijing    Cloud   1            0               67m
+hangzhou   Edge    1            0               66m
+```
+
+### 3.2 Create YurtAppSet
+Create a file yurtset.yaml
+```yaml
+# Used to create YurtAppSet
+apiVersion: apps.openyurt.io/v1alpha1
+kind: YurtAppSet
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: yas-test
+spec:
+  selector:
+    matchLabels:
+      app: yas-test
+  workloadTemplate:
+    deploymentTemplate:
+      metadata:
+        labels:
+          app: yas-test
+      spec:
+        template:
+          metadata:
+            labels:
+              app: yas-test
+          spec:
+            containers: # can be changed to your own images
+              - name: srcnn
+                image: lrq619/srcnn
+                ports:
+                - containerPort: 8000 # the port docker exposes
+  topology:
+    pools:
+    - name: beijing # cloud nodepool name
+      nodeSelectorTerm:
+        matchExpressions:
+        - key: apps.openyurt.io/nodepool
+          operator: In
+          values:
+          - beijing
+      replicas: 1
+    - name: hangzhou # edge nodepool name
+      nodeSelectorTerm:
+        matchExpressions:
+        - key: apps.openyurt.io/nodepool
+          operator: In
+          values:
+          - hangzhou
+      replicas: 1
+      tolerations:
+      - effect: NoSchedule
+        key: apps.openyurt.io/example
+        operator: Exists
+  revisionHistoryLimit: 5
+```
+Then run
+```bash
+kubectl apply -f yurtset.yaml
+```
+The deployments is automatically created.
+You can check them by
+```bash
+kubectl get deploy
+```
+It should output something like
+```bash
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+yas-test-beijing-6bv5g    1/1     1            1           59m
+yas-test-hangzhou-z22r4   1/1     1            1           59m
+```
+### 3.3 Expose deployments to external ip(Optional)
+If the master node is running on a node with public ip address you can choose the expose the deployments to that address by:
+```bash
+kubectl expose deployment <deploy-name>  --type=LoadBalancer --target-port <container-exposed-ip> --external-ip <ip>
+```
+For example:
+```bash
+kubectl expose deployment yas-test-beijing-6bv5g  --type=LoadBalancer --target-port 8000 --external-ip 128.110.217.71
+```
+Then you can use
+```bash
+kubectl get services
+```
+to check the services' public ip addresses and ports to access them.
+To delete a service, use 
+```
+kubectl delete svc <service-name>
+```
