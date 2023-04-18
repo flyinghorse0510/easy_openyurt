@@ -1,5 +1,4 @@
-// Author: Haoyuan Ma <flyinghorse0510@zju.edu.cn>
-package main
+package template
 
 const (
 	yurthubTemplate = `apiVersion: v1
@@ -65,32 +64,8 @@ spec:
   hostNetwork: true
   priorityClassName: system-node-critical
   priority: 2000001000`
-
-	kubeletTemplate = `apiVersion: v1
-clusters:
-- cluster:
-    server: http://127.0.0.1:10261
-  name: default-cluster
-contexts:
-- context:
-    cluster: default-cluster
-    namespace: default
-    user: default-auth
-  name: default-context
-current-context: default-context
-kind: Config
-preferences: {}`
-
-	restartPodsShellTemplate = `existingPods=$(kubectl get pod -A -o wide | grep %s)
-originalIFS=${IFS}
-IFS=$'\n'
-while read -r pod
-do
-	if [ -z "$(echo ${pod} | sed -n "/.*yurt-hub.*/p")" ]; then
-		podNameSpace=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\1/p")
-		podName=$(echo ${pod} | sed -n "s/\s*\(\S*\)\s*\(\S*\).*/\2/p")
-		echo "${podNameSpace} ${podName}"
-	fi
-done <<< ${existingPods}
-IFS=${originalIFS}`
 )
+
+func GetYurtHubConfig() string {
+	return yurthubTemplate
+}

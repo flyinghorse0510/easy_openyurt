@@ -1,3 +1,3 @@
-module gogs.infcompute.com/mhy/src/easy_openyurt
+module gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt
 
-go 1.18
+go 1.20

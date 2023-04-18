@@ -1,11 +1,13 @@
 // Author: Haoyuan Ma <flyinghorse0510@zju.edu.cn>
-package main
+package logs
 
 import (
 	"fmt"
 	"log"
 	"os"
 	"time"
+
+	"gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
 )
 
 var (
@@ -21,8 +23,8 @@ var (
 )
 
 var (
-	commonLog *log.Logger = nil // Common logs
-	errorLog  *log.Logger = nil // Error logs
+	CommonLog *log.Logger = nil // Common logs
+	ErrorLog  *log.Logger = nil // Error logs
 )
 
 // Print colored text in terminal
@@ -39,8 +41,8 @@ func ErrorPrintf(format string, pars ...any) {
 	coloredPrintf(_colorRed, "[%02d:%02d:%02d] [Error] ", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
 	coloredPrintf(_colorRed, format, pars...)
 	// For logs
-	if errorLog != nil {
-		errorLog.Printf(format, pars...)
+	if ErrorLog != nil {
+		ErrorLog.Printf(format, pars...)
 	}
 }
 
@@ -51,8 +53,8 @@ func WarnPrintf(format string, pars ...any) {
 	coloredPrintf(_colorYellow, "[%02d:%02d:%02d] [Warn] ", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
 	coloredPrintf(_colorYellow, format, pars...)
 	// For logs
-	if commonLog != nil {
-		commonLog.Printf(format, pars...)
+	if CommonLog != nil {
+		CommonLog.Printf(format, pars...)
 	}
 }
 
@@ -63,8 +65,8 @@ func SuccessPrintf(format string, pars ...any) {
 	coloredPrintf(_colorGreen, "[%02d:%02d:%02d] [Success] ", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
 	coloredPrintf(_colorGreen, format, pars...)
 	// For logs
-	if commonLog != nil {
-		commonLog.Printf(format, pars...)
+	if CommonLog != nil {
+		CommonLog.Printf(format, pars...)
 	}
 }
 
@@ -75,8 +77,8 @@ func InfoPrintf(format string, pars ...any) {
 	coloredPrintf(_colorBlue, "[%02d:%02d:%02d] [Info] ", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
 	coloredPrintf(_colorBlue, format, pars...)
 	// For logs
-	if commonLog != nil {
-		commonLog.Printf(format, pars...)
+	if CommonLog != nil {
+		CommonLog.Printf(format, pars...)
 	}
 }
 
@@ -113,7 +115,7 @@ func PrintGeneralUsage() {
 
 // Print welcome information
 func PrintWelcomeInfo() {
-	coloredPrintf(_colorGreen, "<<<<<<<<< EasyOpenYurt %s >>>>>>>>>\n", _version)
+	coloredPrintf(_colorGreen, "<<<<<<<<< EasyOpenYurt %s >>>>>>>>>\n", configs.Version)
 }
 
 // Print warning information
@@ -124,23 +126,23 @@ func PrintWarningInfo() {
 }
 
 // Create Logs
-func CreateLogs() {
+func CreateLogs(logDir string) {
 	// notify user
 	WaitPrintf("Creating log files")
 
 	// create log files
-	commonLogFile, err := os.OpenFile(currentDir+"/easyOpenYurtCommon.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	commonLogFile, err := os.OpenFile(logDir+"/easyOpenYurtCommon.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	CheckErrorWithMsg(err, "Failed to create log files!\n")
 
-	errorLogFile, err := os.OpenFile(currentDir+"/easyOpenYurtError.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	errorLogFile, err := os.OpenFile(logDir+"/easyOpenYurtError.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	CheckErrorWithMsg(err, "Failed to create log files!\n")
 
 	// create Logger
-	commonLog = log.New(commonLogFile, "INFO: ", log.Ltime|log.Lshortfile)
-	errorLog = log.New(errorLogFile, "ERROR: ", log.Ltime|log.Lshortfile)
+	CommonLog = log.New(commonLogFile, "INFO: ", log.Ltime|log.Lshortfile)
+	ErrorLog = log.New(errorLogFile, "ERROR: ", log.Ltime|log.Lshortfile)
 
 	// Success
 	SuccessPrintf("\n")
-	SuccessPrintf("Stdout Log -> %s/easyOpenYurtCommon.log\n", currentDir)
-	SuccessPrintf("Stderr Log -> %s/easyOpenYurtError.log\n", currentDir)
+	SuccessPrintf("Stdout Log -> %s/easyOpenYurtCommon.log\n", logDir)
+	SuccessPrintf("Stderr Log -> %s/easyOpenYurtError.log\n", logDir)
 }

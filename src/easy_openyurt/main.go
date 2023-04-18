@@ -3,42 +3,49 @@ package main
 
 import (
 	"os"
-)
 
-var _version = "0.2.0b"
+	knative "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/knative"
+	kube "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/kube"
+	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
+	system "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/system"
+	yurt "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/yurt"
+)
 
 // Init
 func init() {
-	PrintWelcomeInfo()
-	PrintWarningInfo()
-	DetectOS()
-	DetectArch()
-	GetCurrentDir()
-	GetUserHomeDir()
-	CreateLogs()
+	logs.PrintWelcomeInfo()
+	logs.PrintWarningInfo()
+	system.DetectOS()
+	system.DetectArch()
+	system.GetCurrentDir()
+	system.GetUserHomeDir()
+	system.CreateLogs()
 }
 
 func main() {
 	// Check Arguments number
 	argc := len(os.Args)
 	if argc < 4 {
-		PrintGeneralUsage()
-		FatalPrintf("Invalid arguments: too few arguments!\n")
+		logs.PrintGeneralUsage()
+		logs.FatalPrintf("Invalid arguments: too few arguments!\n")
 	}
 	// Parse subcommand
 	operationObject := os.Args[1]
 	switch operationObject {
 	case "system":
 		// `system` subcommand
-		ParseSubcommandSystem(os.Args[2:])
+		system.ParseSubcommandSystem(os.Args[2:])
 	case "kube":
 		// `kube` subcommand
-		ParseSubcommandKube(os.Args[2:])
+		kube.ParseSubcommandKube(os.Args[2:])
 	case "yurt":
 		// `yurt` subcommand
-		ParseSubcommandYurt(os.Args[2:])
+		yurt.ParseSubcommandYurt(os.Args[2:])
+	case "knative":
+		// `knative` subcommand
+		knative.ParseSubcommandKnative(os.Args[2:])
 	default:
-		PrintGeneralUsage()
-		FatalPrintf("Invalid object: <object> -> %s\n", operationObject)
+		logs.PrintGeneralUsage()
+		logs.FatalPrintf("Invalid object: <object> -> %s\n", operationObject)
 	}
 }
