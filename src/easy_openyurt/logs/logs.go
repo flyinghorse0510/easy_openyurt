@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
+	"github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/configs"
 )
 
 var (

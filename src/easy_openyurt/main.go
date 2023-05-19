@@ -4,11 +4,11 @@ package main
 import (
 	"os"
 
-	knative "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/knative"
-	kube "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/kube"
-	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
-	system "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/system"
-	yurt "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/yurt"
+	knative "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/knative"
+	kube "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/kube"
+	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
+	system "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/system"
+	yurt "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/yurt"
 )
 
 // Init

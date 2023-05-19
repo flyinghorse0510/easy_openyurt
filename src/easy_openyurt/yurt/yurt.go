@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	configs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
-	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
-	system "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/system"
-	template "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/template"
+	configs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/configs"
+	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
+	system "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/system"
+	template "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/template"
 )
 
 // Parse parameters for subcommand `yurt`

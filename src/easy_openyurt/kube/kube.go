@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	configs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
-	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
-	system "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/system"
+	configs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/configs"
+	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
+	system "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/system"
 )
 
 // Parse parameters for subcommand `kube`

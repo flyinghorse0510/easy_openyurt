@@ -10,8 +10,8 @@ import (
 	"path"
 	"strings"
 
-	configs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
-	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
+	configs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/configs"
+	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
 )
 
 // Implement error interface of ShellError

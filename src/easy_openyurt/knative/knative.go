@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	configs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/configs"
-	logs "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/logs"
-	system "gogs.infcompute.com/mhy/easy_openyurt/src/easy_openyurt/system"
+	configs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/configs"
+	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
+	system "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/system"
 )
 
 func ParseSubcommandKnative(args []string) {
@@ -42,14 +42,17 @@ func ParseSubcommandKnative(args []string) {
 		knativeFlags.Usage()
 		os.Exit(0)
 	}
-	InstallKnativeServing()
-	InstallKnativeEventing()
+
 	var vHiveMode string
 	if configs.Knative.VHiveMode {
 		vHiveMode = "true"
 	} else {
 		vHiveMode = "false"
 	}
+
+	InstallKnativeServing()
+	InstallKnativeEventing()
+
 	logs.SuccessPrintf("Init Knative Successfully! (vHive mode: %s)\n", vHiveMode)
 }
 
