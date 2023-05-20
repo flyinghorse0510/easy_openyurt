@@ -60,6 +60,9 @@ func ParseSubcommandKnative(args []string) {
 func InstallKnativeServing() {
 	var err error
 
+	system.CreateTmpDir()
+	defer system.CleanUpTmpDir()
+
 	// Install and configure MetalLB
 	logs.WaitPrintf("Installing and configuring MetalLB")
 	_, err = system.ExecShellCmd(`kubectl get configmap kube-proxy -n kube-system -o yaml | sed -e "s/strictARP: false/strictARP: true/" | kubectl apply -f - -n kube-system`)
