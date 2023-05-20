@@ -8,6 +8,7 @@ import (
 	kube "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/kube"
 	logs "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/logs"
 	system "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/system"
+	vhive "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/vhive"
 	yurt "github.com/flyinghorse0510/easy_openyurt/src/easy_openyurt/yurt"
 )
 
@@ -44,6 +45,9 @@ func main() {
 	case "knative":
 		// `knative` subcommand
 		knative.ParseSubcommandKnative(os.Args[2:])
+	case "vhive":
+		// `vHive` subcommand
+		vhive.ParseSubcommandVHive(os.Args[2:])
 	default:
 		logs.PrintGeneralUsage()
 		logs.FatalPrintf("Invalid object: <object> -> %s\n", operationObject)
