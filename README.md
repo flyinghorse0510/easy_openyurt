@@ -44,13 +44,22 @@ Go for [releases](https://github.com/flyinghorse0510/easy_openyurt/releases) and
 
 #### 2.1.2 Build from source
 
-**Building from source requires Golang(version at least 1.18) installed.**
+**Building from source requires Golang(version at least 1.20) installed.**
 
+##### Build for current system
 ```bash
 git clone https://github.com/flyinghorse0510/easy_openyurt.git
 cd easy_openyurt/
 go build -o easy_openyurt ./src/easy_openyurt/*.go
 ```
+
+##### Build for all targets
+```bash
+git clone https://github.com/flyinghorse0510/easy_openyurt.git
+cd easy_openyurt/src/easy_openyurt/
+chmod +x ./build.sh && ./build.sh
+```
+Compiled executable files will be in the `bin` directory.
 
 ### 2.2 Configure System on Master / Worker Node
 
@@ -87,11 +96,11 @@ Additionally, if you want to change the version of components to be installed, y
 #   -help
 #         Show help
 #   -kubeadm-version string
-#         Kubeadm version (default "1.23.16-00")
+#         Kubeadm version (default "1.25.9-00")
 #   -kubectl-version string
-#         Kubectl version (default "1.23.16-00")
+#         Kubectl version (default "1.25.9-00")
 #   -kubelet-version string
-#         Kubelet version (default "1.23.16-00")
+#         Kubelet version (default "1.25.9-00")
 #   -runc-version string
 #         Runc version (default "1.1.4")
 ```
@@ -138,7 +147,7 @@ To view the help and all available optional parameters, add `-h` to see more det
 #   -help
 #         Show help
 #   -k8s-version string
-#         Kubernetes version (default "1.23.16")
+#         Kubernetes version (default "1.25.9")
 ```
 
 #### 2.3.2 Set up Worker Node
@@ -172,6 +181,7 @@ To view the help and all available optional parameters, add `-h` to see more det
 ```
 
 ### 2.4 Deploy OpenYurt on Kubernetes Cluster
+> If you just want a vanilla Kubernetes cluster(or vanilla Knative/vHive furthermore), please just skip this section.
 
 #### 2.4.1 Deploy on Master Node
 
@@ -252,6 +262,35 @@ To view the help and all available optional parameters, add `-h` to see more det
 #         Treat worker as edge node (default true)
 #   -worker-node-name string
 #         Worker node name(**REQUIRED**)
+```
+
+### 2.5 Deploy Knative(vHive stock-only mode compatible)
+
+ > This is an **optional** step. If you don't want to use the Knative/vHive, feel free to skip this section.
+
+**<u>On the master node,</u>** use the following command to deploy Knative(vHive stock-only mode compatible) on the cluster:
+
+```bash
+./easy_openyurt knative master init
+```
+
+To view the help and all available optional parameters, add `-h` to see more details:
+
+```bash
+./easy_openyurt knative master init -h
+#### Output ####
+# Usage of ./easy_openyurt-amd64-linux-0.2.3 yurt master init:
+  # -h    Show help
+  # -help
+        # Show help
+  # -istio-version string
+        # Istio version (default "1.16.3")
+  # -knative-version string
+        # Knative version (default "1.9.2")
+  # -metalLB-version string
+        # MetalLB version (default "0.13.9")
+  # -vhive-mode
+        # vHive mode (default true)
 ```
 
 ## 3. Create NodePool and deploy apps
