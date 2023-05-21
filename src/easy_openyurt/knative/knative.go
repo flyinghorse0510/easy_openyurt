@@ -91,7 +91,9 @@ func InstallKnativeServing() {
 	logs.CheckErrorWithMsg(err, "Failed to update PATH!")
 	// Deploy istio operator
 	logs.WaitPrintf("Deploying istio operator")
-	_, err = system.ExecShellCmd("istioctl install -y -f %s", configs.Knative.IstioOperatorConfigUrl)
+	operatorConfigPath, err := system.DownloadToTmpDir(configs.Knative.IstioOperatorConfigUrl)
+	logs.CheckErrorWithMsg(err, "Failed to deploy istio operator!")
+	_, err = system.ExecShellCmd("/usr/local/istio-%s/bin/istioctl install -y -f %s", configs.Knative.IstioVersion, operatorConfigPath)
 	logs.CheckErrorWithTagAndMsg(err, "Failed to deploy istio operator!")
 
 	// Install Knative Serving component
@@ -110,7 +112,7 @@ func InstallKnativeServing() {
 	_, err = system.ExecShellCmd("REPO_VOL_SIZE=%s envsubst < %s | kubectl create --filename -", configs.Knative.LocalRegistryRepoVolumeSize, configFilePath)
 	logs.CheckErrorWithMsg(err, "Failed to install local cluster registry!")
 	_, err = system.ExecShellCmd("kubectl create -f %s && kubectl apply -f %s", configs.Knative.LocalRegistryDockerRegistryConfigUrl, configs.Knative.LocalRegistryHostUpdateConfigUrl)
-	logs.CheckErrorWithMsg(err, "Failed to install local cluster registry!")
+	logs.CheckErrorWithTagAndMsg(err, "Failed to install local cluster registry!")
 
 	// Configure Magic DNS
 	logs.WaitPrintf("Configuring Magic DNS")

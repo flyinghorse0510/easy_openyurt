@@ -179,9 +179,9 @@ func DownloadToTmpDir(urlTemplate string, pars ...any) (string, error) {
 func ExtractToDir(filePath string, dirPath string, privileged bool) error {
 	var err error
 	if privileged {
-		_, err = ExecShellCmd("sudo tar -xzvf %s -C %s", dirPath, filePath)
+		_, err = ExecShellCmd("sudo tar -xzvf %s -C %s", filePath, dirPath)
 	} else {
-		_, err = ExecShellCmd("tar -xzvf %s -C %s", dirPath, filePath)
+		_, err = ExecShellCmd("tar -xzvf %s -C %s", filePath, dirPath)
 	}
 	return err
 }
